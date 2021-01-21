@@ -1,20 +1,22 @@
-map:
+maps:
   -
     # 0         1         2
     # 0123456789012345678901234567
-    - ..............###........... ; 0
-    - ..............#.#........... ; 1
-    - ..............#.#........... ; 2
-    - ..........#####.#........... ; 3
-    - ..........#.....#........... ; 4
-    - ..........#...##............ ; 5
-    - ..........##.##............. ; 6
-    - ...........#.#.............. ; 7
-    - ...........#.#.............. ; 8
-    - ...........###.............. ; 9
+    - --------------###----------- 0
+    - --------------#.#----------- 1
+    - --------------#.#----------- 2
+    - ----------#####.#----------- 3
+    - ----------#.....#----------- 4
+    - ----------#...##------------ 5
+    - ----------##.##------------- 6
+    - -----------#.#-------------- 7
+    - -----------#.#-------------- 8
+    - -----------###-------------- 9
+entry: [12, 8, 0]
 rooms:
-  - coord: [12, 8, 0]
-    description: >
+  - title: Stone End Docks
+    coord: [12, 8, 0]
+    description: |
       You are standing at the Stone End docks. To the south, a city guard stands in
       a guard post, blocking the entrance to the docks. You can see The Torbay anchored
       in the port, the ship you came in on. The rowboat that brought you in from the
@@ -26,23 +28,84 @@ rooms:
         targets: [guard post, post]
         value: The guard post is well worn. It looks old, but sturdy.
 
-  - coord: [12, 7, 0]
-    description: >
-      To the north the city begins to open up. A sailor from the ship is chatting up
-      a woman in a worn but colorful dress.
+  - title: Stone End Market Road
+    coord: [12, 7, 0]
+    description: |
+      The road you are on is surrounded by densely packed houses. A sailor from the ship
+      is chatting up a woman in a worn, but colorful dress.
+
+      To the north the city begins to open up.
 
       The docks can be seen to the south. A forest of masts poke out from the bay. Smaller
       boats can be seen shuffling people to the busy port.
-  - coord: [12, 6, 0]
-    description: >
+    actions:
+      - verb: Talk
+        targets: [sailor]
+        value: |
+            The sailor responds, "I found her first. Go away."
+      - verb: Talk
+        targets: [woman]
+        value: |
+            The woman winks at you and says, "Hey sweetheart. Come back later, this one
+            shouldn't take too long. He's freshly caught from the sea."
+      - verb: Look
+        targets: [sailor]
+        value: |
+            The sailor was on your ship. You don't know his name, but your not surprised
+            to see him here. He has his hand on his belt purse. You listen in to the
+            conversation for a moment, but your ears turn red with what the sailor is
+            saying.
+      - verb: Look
+        targets: [woman]
+        value: |
+            The woman has heavy caked makeup on. Her dress is purple with a frayed
+            hem. There is lace. So much lace... well, spilling out of everywhere.
+
+  - title: Stone End Market Entrance
+    coord: [12, 6, 0]
+    description: |
       You stand in front of a gate. Two guards stand there, pikes in hand. Over the gate
       hangs a festive hand painted banner.
     actions:
       - verb: Talk
         targets: [guard]
-        value: >
-            Move along. The market's open, but mind your wallet. You look like you are new in
-            town. The market is only open today, so get your buying done today.
+        value: |
+            The guard looks bored. "Move along. The market's open, but mind your wallet.
+            You look like you are new in town. The market is only open today, so get your
+            buying done today."
       - verb: Look
         targets: [banner]
         value: The banner says "Stone End Market".
+  - title: TODO
+    coord: [15, 1, 0]
+    description: TODO
+  - title: TODO
+    coord: [14, 4, 0]
+    description: TODO
+  - title: TODO
+    coord: [11, 4, 0]
+    description: TODO
+  - title: TODO
+    coord: [13, 4, 0]
+    description: TODO
+  - title: TODO
+    coord: [12, 5, 0]
+    description: TODO
+  - title: TODO
+    coord: [12, 4, 0]
+    description: TODO
+  - title: TODO
+    coord: [13, 5, 0]
+    description: TODO
+  - title: TODO
+    coord: [15, 3, 0]
+    description: TODO
+  - title: TODO
+    coord: [11, 5, 0]
+    description: TODO
+  - title: TODO
+    coord: [15, 4, 0]
+    description: TODO
+  - title: TODO
+    coord: [15, 2, 0]
+    description: TODO
