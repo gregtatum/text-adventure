@@ -1,0 +1,48 @@
+map:
+  -
+    # 0         1         2
+    # 0123456789012345678901234567
+    - ..............###........... ; 0
+    - ..............#.#........... ; 1
+    - ..............#.#........... ; 2
+    - ..........#####.#........... ; 3
+    - ..........#.....#........... ; 4
+    - ..........#...##............ ; 5
+    - ..........##.##............. ; 6
+    - ...........#.#.............. ; 7
+    - ...........#.#.............. ; 8
+    - ...........###.............. ; 9
+rooms:
+  - coord: [12, 8, 0]
+    description: >
+      You are standing at the Stone End docks. To the south, a city guard stands in
+      a guard post, blocking the entrance to the docks. You can see The Torbay anchored
+      in the port, the ship you came in on. The rowboat that brought you in from the
+      ship is tied up on the docks. The sailors are nowhere to be seen.
+
+      To the north the city awaits.
+    actions:
+      - verb: Look
+        targets: [guard post, post]
+        value: The guard post is well worn. It looks old, but sturdy.
+
+  - coord: [12, 7, 0]
+    description: >
+      To the north the city begins to open up. A sailor from the ship is chatting up
+      a woman in a worn but colorful dress.
+
+      The docks can be seen to the south. A forest of masts poke out from the bay. Smaller
+      boats can be seen shuffling people to the busy port.
+  - coord: [12, 6, 0]
+    description: >
+      You stand in front of a gate. Two guards stand there, pikes in hand. Over the gate
+      hangs a festive hand painted banner.
+    actions:
+      - verb: Talk
+        targets: [guard]
+        value: >
+            Move along. The market's open, but mind your wallet. You look like you are new in
+            town. The market is only open today, so get your buying done today.
+      - verb: Look
+        targets: [banner]
+        value: The banner says "Stone End Market".
