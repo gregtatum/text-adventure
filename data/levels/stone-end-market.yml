@@ -14,6 +14,9 @@ maps:
     - -----------###-------------- 9
 entry: [12, 8, 0]
 rooms:
+  # --------------------------------------------------------------------------------------
+  # The Docks
+  # --------------------------------------------------------------------------------------
   - title: Stone End Docks
     coord: [12, 8, 0]
     description: |
@@ -61,7 +64,7 @@ rooms:
             The woman has heavy caked makeup on. Her dress is purple with a frayed
             hem. There is lace. So much lace... well, spilling out of everywhere.
 
-  - title: Stone End Market Entrance
+  - title: Stone End Market Gate
     coord: [12, 6, 0]
     description: |
       You stand in front of a gate. Two guards stand there, pikes in hand. Over the gate
@@ -76,36 +79,42 @@ rooms:
       - verb: Look
         targets: [banner]
         value: The banner says "Stone End Market".
-  - title: TODO
-    coord: [15, 1, 0]
-    description: TODO
-  - title: TODO
-    coord: [14, 4, 0]
-    description: TODO
-  - title: TODO
-    coord: [11, 4, 0]
-    description: TODO
-  - title: TODO
-    coord: [13, 4, 0]
-    description: TODO
-  - title: TODO
+  # --------------------------------------------------------------------------------------
+  # The Market
+  # --------------------------------------------------------------------------------------
+  - title: Stone End Market
     coord: [12, 5, 0]
     description: TODO
-  - title: TODO
+  - title: The Door to the Stone End Keep
     coord: [12, 4, 0]
     description: TODO
-  - title: TODO
+  - title: North East Corner of the Market
+    coord: [14, 4, 0]
+    description: TODO
+  - title: North West Corner of the Market
+    coord: [11, 4, 0]
+    description: TODO
+  - title: North East Corner of the Market
+    coord: [13, 4, 0]
+    description: TODO
+  - title: South East Corner of the Market
     coord: [13, 5, 0]
     description: TODO
-  - title: TODO
-    coord: [15, 3, 0]
-    description: TODO
-  - title: TODO
+  - title: South West Corner of the Market
     coord: [11, 5, 0]
     description: TODO
-  - title: TODO
+  # --------------------------------------------------------------------------------------
+  # The Alley
+  # --------------------------------------------------------------------------------------
+  - title: Alley Entrance
     coord: [15, 4, 0]
     description: TODO
-  - title: TODO
+  - title: Alley
+    coord: [15, 3, 0]
+    description: TODO
+  - title: Dark Alley
     coord: [15, 2, 0]
+    description: TODO
+  - title: River Entrance
+    coord: [15, 1, 0]
     description: TODO

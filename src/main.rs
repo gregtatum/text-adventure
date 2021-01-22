@@ -81,7 +81,7 @@ struct Room {
 }
 
 impl Room {
-    fn print_description(&self, room_map_info: &RoomMapInfo) {
+    fn print_description(&self, state: &GameSaveState, room_map_info: &RoomMapInfo) {
         println!("{}\n", self.title);
 
         let mut formatted_description = self.cached_formatted_description.borrow_mut();
@@ -111,6 +111,10 @@ impl Room {
             *formatted_description = formatted_lines.join("");
         }
         println!("{}", formatted_description);
+        if state.debug {
+            let Coord { x, y, z } = state.coord;
+            println!("Coord: [{}, {}, {}]", x, y, z);
+        }
         print_exits(room_map_info);
     }
 
@@ -296,6 +300,7 @@ enum ParsedCommand {
     Unknown,
     Move(Direction),
     Quit,
+    Debug,
 }
 
 struct CommandTarget(String);
@@ -343,26 +348,53 @@ fn parse_command(input: String) -> ParsedCommand {
         "south" | "s" => ParsedCommand::Move(Direction::South),
         "west" | "w" => ParsedCommand::Move(Direction::West),
         "help" => ParsedCommand::Help,
+        "debug" => ParsedCommand::Debug,
         "quit" | "q" | "exit" => ParsedCommand::Quit,
         _ => ParsedCommand::Unknown,
     }
 }
 
-fn main() {
-    let path = PathBuf::from("data/levels/stone-end-market.yml");
-    let yml_string = fs::read_to_string(path).expect("Could not load the level yml file.");
-    let level: Level = serde_yaml::from_str(&yml_string).expect("Unable to parse the level");
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct GameSaveState {
+    coord: Coord,
+    debug: bool,
+}
 
-    let mut coord = level.entry;
+impl GameSaveState {
+    fn from_level(level: &Level) -> GameSaveState {
+        GameSaveState {
+            coord: level.entry,
+            debug: false,
+        }
+    }
+}
+
+fn main() {
+    let level: Level = {
+        let yml_string = fs::read_to_string(PathBuf::from("data/levels/stone-end-market.yml"))
+            .expect("Could not load the level yml file.");
+        serde_yaml::from_str(&yml_string).expect("Unable to parse the level")
+    };
+    let mut state: GameSaveState = {
+        let path = PathBuf::from("data/save-state.yml");
+        if path.exists() {
+            let yml_string = fs::read_to_string(PathBuf::from("data/save-state.yml"))
+                .expect("Could not load the level yml file.");
+            serde_yaml::from_str(&yml_string).expect("Unable to parse the save state")
+        } else {
+            GameSaveState::from_level(&level)
+        }
+    };
+
     let mut room = level
         .get_room(&level.entry)
         .expect("Unable to find the entry room.");
 
     let lookup_room_info = parse_map(&level);
-    let mut room_info = lookup_room_info.get(&coord).unwrap();
+    let mut room_info = lookup_room_info.get(&state.coord).unwrap();
 
     print_text_file("data/intro.txt");
-    room.print_description(&room_info);
+    room.print_description(&state, &room_info);
 
     loop {
         let string = get_prompt();
@@ -377,25 +409,38 @@ fn main() {
                     println!("You don't see {:?}", target.0);
                 }
             },
-            ParsedCommand::Look(None) => room.print_description(&room_info),
+            ParsedCommand::Look(None) => room.print_description(&state, &room_info),
             ParsedCommand::Help => print_text_file("data/help.txt"),
             ParsedCommand::Unknown => println!("Unknown command. Type \"help\" for help."),
             ParsedCommand::Move(direction) => {
                 match room_info.from_direction(&direction) {
                     Some(next_coord) => {
-                        coord = next_coord.clone();
-                        room_info = lookup_room_info.get(&coord).unwrap();
+                        state.coord = next_coord.clone();
+                        room_info = lookup_room_info.get(&state.coord).unwrap();
                         room = level
                             .get_room(&next_coord)
                             .expect("Expected to find a room.");
-                        room.print_description(&room_info);
+                        room.print_description(&state, &room_info);
                     }
                     None => {
                         eprintln!("You cannot move {}.", direction.lowercase_string());
                     }
                 };
             }
+            ParsedCommand::Debug => {
+                state.debug = !state.debug;
+                if state.debug {
+                    println!("Debug mode activated.");
+                } else {
+                    println!("Debug mode de-activated.");
+                }
+            }
             ParsedCommand::Quit => {
+                let path = PathBuf::from("data/save-state.yml");
+                let yml =
+                    serde_yaml::to_string(&state).expect("Unable to serialize the game state.");
+                fs::write(path, yml).expect("Unable to save the game state.");
+
                 println!("Thanks for playing!");
                 return;
             }
