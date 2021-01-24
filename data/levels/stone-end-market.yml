@@ -13,6 +13,46 @@ maps:
     - -----------#.#-------------- 8
     - -----------###-------------- 9
 entry: [12, 8, 0]
+entities:
+  - type: Merchant
+    name: Grill Merchant
+    description: |
+      A greasy looking merchant stands before you. He is pushing a one wheeled cart
+      that is loaded with grilled meat.
+    items:
+      - id: grilled-rat
+        cost: 2
+      - id: mysterious-meat
+        cost: 1
+    regions: [market]
+    count: 1
+regions:
+  - name: market
+    actions:
+      - verb: Look
+        targets: [keep, stone end, stone end keep, castle, walls]
+        value:
+          Stone End Keep is a towering structure that dominates the market. It is guarded
+          and shut. Over the din of the market you can barely hear the sounds of shouting.
+    actions:
+      - verb: Attack
+        targets: [guard, guards]
+        value: |
+          You pull out your sword and approach a guard. You feel a thud. Looking down
+          you strangely see just the fletchings of an arrow attached to your chest.
+          Blood blooms from the hole and everything goes black.
+        outcome: Death
+    actions:
+      - verb: Attack
+        targets: [merchant]
+        value: |
+          The merchant screams as your sword splits their head in two. You attempt to pull
+          the sword free, but it is stuck. Before you know it, a guard has shoved a pike
+          into your side.
+
+          You attempt to flee, but you lose consciousness as the blood leaks from your
+          side.
+        outcome: Death
 rooms:
   # --------------------------------------------------------------------------------------
   # The Docks
@@ -21,7 +61,7 @@ rooms:
     coord: [12, 8, 0]
     description: |
       You are standing at the Stone End docks. To the south, a city guard stands in
-      a guard post, blocking the entrance to the docks. You can see The Torbay anchored
+      a guard post, blocking the entrance to the docks. You can see "The Torbay" anchored
       in the port, the ship you came in on. The rowboat that brought you in from the
       ship is tied up on the docks. The sailors are nowhere to be seen.
 
@@ -30,6 +70,11 @@ rooms:
       - verb: Look
         targets: [guard post, post]
         value: The guard post is well worn. It looks old, but sturdy.
+      - verb: Look
+        targets: [docks, dock, boat, boats, rowboat]
+        value: |
+          The docks are bustling with activity. Goods are being unloaded. Customs
+          agents are taking looking over the bills of carry.
 
   - title: Stone End Market Road
     coord: [12, 7, 0]
@@ -84,25 +129,74 @@ rooms:
   # --------------------------------------------------------------------------------------
   - title: Stone End Market
     coord: [12, 5, 0]
-    description: TODO
+    description: |
+      You step into a bustling market. Merchants are shouting into the crowd, hawking
+      their wares. You see small urchin children running around. You put your hand
+      protectively over your belt purse.
+    actions:
+      - verb: Talk
+        targets: [merchant, merchants]
+        value: |
+          There aren't any merchants next to you. Go further into the market.
+    regions: [market]
   - title: The Door to the Stone End Keep
     coord: [12, 4, 0]
-    description: TODO
+    description: |
+      Stone steps lead up to two large sturdy doors. These are attached to the thick walls
+      of Stone End keep. Guards block the gate, standing at attention, pikes in hand.
+    actions:
+      - verb: Look
+        targets: [gate]
+        value: The gate is made of solid beams of wood. It is reinforced with steel bands.
+      - verb: Look
+        targets: [walls]
+        value: The walls are hewed from limestone. They look around 30 feet tall.
+      - verb: Talk
+        targets: [guards]
+        value: They do not respond, but they tighten their grips on their pikes.
+    regions: [market]
   - title: North East Corner of the Market
     coord: [14, 4, 0]
     description: TODO
+    regions: [market]
   - title: North West Corner of the Market
     coord: [11, 4, 0]
-    description: TODO
+    description: |
+      Two guards are yelling at a very flustered looking merchant. There is an overturned
+      cart and a tangled up mule blocking the gate out to the rest of the town. Vegetables
+      are strewn across the cobblestones.
+
+      The road to the west is blocked by the cart.
+    actions:
+      - verb: Look
+        targets: [guards, guard, merchant, cart, mule]
+        value: |
+          The guards yell, "You have to move your cart. It's blocking the gate!"
+
+          The merchant responds, "But I can't my poor Nelly is all tangled up and I can't
+          move the cart."
+      - verb: Talk
+        targets: [guards, guard]
+        value: |
+          One of the guards looks angrily up at you. "You'll have to go through another
+          gate, this one is blocked by this idiot merchant."
+      - verb: Talk
+        targets: [merchant]
+        value: |
+          The merchant is too flustered to respond.
+    regions: [market]
   - title: North East Corner of the Market
     coord: [13, 4, 0]
     description: TODO
+    regions: [market]
   - title: South East Corner of the Market
     coord: [13, 5, 0]
     description: TODO
+    regions: [market]
   - title: South West Corner of the Market
     coord: [11, 5, 0]
     description: TODO
+    regions: [market]
   # --------------------------------------------------------------------------------------
   # The Alley
   # --------------------------------------------------------------------------------------

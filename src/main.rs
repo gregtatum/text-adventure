@@ -1,5 +1,11 @@
-use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, process};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    fs,
+    path::PathBuf,
+    process,
+};
 
 const LINE_WIDTH: usize = 90;
 const INDENT: usize = 4;
@@ -81,7 +87,7 @@ struct Room {
 }
 
 impl Room {
-    fn print_description(&self, state: &GameSaveState, room_map_info: &RoomMapInfo) {
+    fn print_description(&self, state: &GameState, room_map_info: &RoomMapInfo) {
         println!("{}\n", self.title);
 
         let mut formatted_description = self.cached_formatted_description.borrow_mut();
@@ -293,37 +299,87 @@ impl Direction {
 }
 
 enum ParsedCommand {
-    Look(Option<CommandTarget>),
-    Talk(Option<CommandTarget>),
+    Look(Option<String>),
+    Talk(Option<String>),
     Message(String),
+    Inventory,
     Help,
-    Unknown,
     Move(Direction),
+    Drop(String),
     Quit,
     Debug,
+    Restart,
 }
-
-struct CommandTarget(String);
 
 enum CommandParseError {
     PrepositionError(String),
 }
 
-fn parse_command_target(parts: &Vec<&str>) -> Result<Option<CommandTarget>, CommandParseError> {
+#[derive(Serialize, Deserialize)]
+struct Inventory {
+    pub items: Vec<InventoryItem>,
+}
+
+impl From<Vec<InventoryItem>> for Inventory {
+    fn from(items: Vec<InventoryItem>) -> Inventory {
+        Inventory { items }
+    }
+}
+
+enum DropResult {
+    Item(InventoryItem),
+    Sticky,
+    None,
+}
+
+impl Inventory {
+    pub fn drop_item(&mut self, name: &str) -> DropResult {
+        // Find the item if it exists.
+        let tuple = self
+            .items
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.name.to_lowercase() == name || item.aka.contains(name));
+
+        match tuple {
+            Some((index, item)) => {
+                if item.sticky {
+                    return DropResult::Sticky;
+                }
+
+                let removed_item = item.clone();
+
+                // Remove the item.
+                self.items = self
+                    .items
+                    .drain(..)
+                    .enumerate()
+                    .filter(|(i, _)| *i != index)
+                    .map(|(_, item)| item)
+                    .collect();
+
+                DropResult::Item(removed_item)
+            }
+            None => DropResult::None,
+        }
+    }
+}
+
+fn parse_command_target(parts: &Vec<&str>) -> Result<Option<String>, CommandParseError> {
     if parts.len() == 1 || parts.len() == 0 {
         return Ok(None);
     }
 
     let word = parts.get(1).unwrap();
     match word {
-        &"at" | &"to" => {
+        &"at" | &"to" | &"in" => {
             if parts.len() == 2 {
                 Err(CommandParseError::PrepositionError(word.to_string()))
             } else {
-                Ok(Some(CommandTarget(parts[2..].join(" "))))
+                Ok(Some(parts[2..].join(" ")))
             }
         }
-        _ => Ok(Some(CommandTarget(parts[1..].join(" ")))),
+        _ => Ok(Some(parts[1..].join(" "))),
     }
 }
 
@@ -347,42 +403,169 @@ fn parse_command(input: String) -> ParsedCommand {
         "east" | "e" => ParsedCommand::Move(Direction::East),
         "south" | "s" => ParsedCommand::Move(Direction::South),
         "west" | "w" => ParsedCommand::Move(Direction::West),
+        "inventory" | "inv" => ParsedCommand::Inventory,
+        "go" => match target {
+            Some(ref s) => match s.as_str() {
+                "north" => ParsedCommand::Move(Direction::North),
+                "east" => ParsedCommand::Move(Direction::East),
+                "south" => ParsedCommand::Move(Direction::South),
+                "west" => ParsedCommand::Move(Direction::West),
+                _ => ParsedCommand::Message(format!("You don't know how to go {:?}", s)),
+            },
+            None => ParsedCommand::Message("Where do you want to go?".into()),
+        },
+        "" => ParsedCommand::Message("".into()),
         "help" => ParsedCommand::Help,
         "debug" => ParsedCommand::Debug,
+        "drop" => match target {
+            Some(target) => ParsedCommand::Drop(target),
+            None => ParsedCommand::Message("You stop drop and roll.".into()),
+        },
         "quit" | "q" | "exit" => ParsedCommand::Quit,
-        _ => ParsedCommand::Unknown,
+        "restart" => ParsedCommand::Restart,
+        _ => ParsedCommand::Message(format!(
+            "You don't know how to {:?}. Type \"help\" for help.",
+            command
+        )),
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct GameSaveState {
-    coord: Coord,
-    debug: bool,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+enum ItemVariant {
+    Consumable,
+    Weapon,
+    Money,
 }
 
-impl GameSaveState {
-    fn from_level(level: &Level) -> GameSaveState {
-        GameSaveState {
-            coord: level.entry,
-            debug: false,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct InventoryItem {
+    id: String,
+    name: String,
+    aka: HashSet<String>,
+    #[serde(default)]
+    sticky: bool,
+    variant: ItemVariant,
+    #[serde(default)]
+    quantity: usize,
+    #[serde(default)]
+    max_quantity: Option<usize>,
+}
+
+struct ItemDatabase {
+    items: Vec<InventoryItem>,
+}
+
+fn parse_yml<T>(path: &PathBuf) -> T
+where
+    T: DeserializeOwned,
+{
+    let yml_string = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(_) => panic!("Could not load {:?}", path),
+    };
+
+    match serde_yaml::from_str(&yml_string) {
+        Ok(t) => t,
+        Err(err) => {
+            eprintln!("========================================================");
+            eprintln!("Unable to deserialize: {:?}", path);
+
+            if let Some(location) = err.location() {
+                eprintln!("========================================================");
+                let backscroll = 10;
+                let backscroll_index = location.line() - backscroll.min(location.line());
+                for (line_index, line) in yml_string.lines().enumerate() {
+                    if line_index > backscroll_index {
+                        eprintln!("{}", line);
+                    }
+                    if line_index == location.line() - 1 {
+                        for _ in 0..location.line() {
+                            print!(" ");
+                        }
+                        println!("^ {}", err);
+                        break;
+                    }
+                }
+            }
+            process::exit(1);
+
+            // panic!("Unable to deserialize {:?}\n{:?}", path, err)
         }
     }
 }
 
+impl ItemDatabase {
+    fn new() -> ItemDatabase {
+        ItemDatabase {
+            items: parse_yml(&"data/items.yml".into()),
+        }
+    }
+
+    fn get(&self, id: &str) -> &InventoryItem {
+        let item = self.items.iter().find(|item| item.id == id);
+        match item {
+            Some(item) => item,
+            None => {
+                panic!("Unable to find the item with the id {}", id);
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct GameState {
+    coord: Coord,
+    debug: bool,
+    inventory: Inventory,
+}
+
+impl GameState {
+    fn initialize(item_db: &ItemDatabase, level: &Level) -> GameState {
+        GameState {
+            coord: level.entry,
+            debug: false,
+            inventory: Inventory::from(vec![
+                //
+                item_db.get("sword").clone(),
+                item_db.get("gold").clone(),
+            ]),
+        }
+    }
+}
+
+enum GameLoopResponse {
+    Restart,
+    Quit,
+}
+
 fn main() {
+    loop {
+        match game_loop() {
+            GameLoopResponse::Restart => {
+                fs::remove_file(PathBuf::from("data/save-state.yml"))
+                    .expect("Unable to remove the save file.");
+            }
+            GameLoopResponse::Quit => {
+                println!("Thanks for playing!");
+                return;
+            }
+        };
+    }
+}
+
+fn game_loop() -> GameLoopResponse {
     let level: Level = {
         let yml_string = fs::read_to_string(PathBuf::from("data/levels/stone-end-market.yml"))
             .expect("Could not load the level yml file.");
         serde_yaml::from_str(&yml_string).expect("Unable to parse the level")
     };
-    let mut state: GameSaveState = {
+    let item_db = ItemDatabase::new();
+    let mut state: GameState = {
         let path = PathBuf::from("data/save-state.yml");
         if path.exists() {
-            let yml_string = fs::read_to_string(PathBuf::from("data/save-state.yml"))
-                .expect("Could not load the level yml file.");
-            serde_yaml::from_str(&yml_string).expect("Unable to parse the save state")
+            parse_yml(&"data/save-state.yml".into())
         } else {
-            GameSaveState::from_level(&level)
+            GameState::initialize(&item_db, &level)
         }
     };
 
@@ -401,17 +584,16 @@ fn main() {
         // Add a newline after the prompt.
         println!("");
         match parse_command(string) {
-            ParsedCommand::Look(Some(target)) => match room.find_action(Verb::Look, &target.0) {
+            ParsedCommand::Look(Some(target)) => match room.find_action(Verb::Look, &target) {
                 Some(action) => {
                     println!("{}", action.value);
                 }
                 None => {
-                    println!("You don't see {:?}", target.0);
+                    println!("You don't see a {}.", target);
                 }
             },
             ParsedCommand::Look(None) => room.print_description(&state, &room_info),
             ParsedCommand::Help => print_text_file("data/help.txt"),
-            ParsedCommand::Unknown => println!("Unknown command. Type \"help\" for help."),
             ParsedCommand::Move(direction) => {
                 match room_info.from_direction(&direction) {
                     Some(next_coord) => {
@@ -435,27 +617,96 @@ fn main() {
                     println!("Debug mode de-activated.");
                 }
             }
+            ParsedCommand::Drop(target) => match state.inventory.drop_item(&target) {
+                DropResult::Item(item) => {
+                    println!("You dropped the {}.", item.name);
+                }
+                DropResult::Sticky => {
+                    println!("The {} appear(s) to be sticking to your hand.", target)
+                }
+                DropResult::None => {
+                    println!("It does not look like you have a {}.", target);
+                }
+            },
             ParsedCommand::Quit => {
                 let path = PathBuf::from("data/save-state.yml");
                 let yml =
                     serde_yaml::to_string(&state).expect("Unable to serialize the game state.");
                 fs::write(path, yml).expect("Unable to save the game state.");
 
-                println!("Thanks for playing!");
-                return;
+                return GameLoopResponse::Quit;
             }
-            ParsedCommand::Talk(Some(target)) => match room.find_action(Verb::Talk, &target.0) {
+            ParsedCommand::Talk(Some(target)) => match room.find_action(Verb::Talk, &target) {
                 Some(action) => {
                     println!("{}", action.value);
                 }
                 None => {
-                    println!("You can't talk to {:?}", target.0);
+                    println!("You can't talk to {:?}", target);
                 }
             },
             ParsedCommand::Talk(None) => {
                 println!("You talk outloud for a bit and feel much better, thank you.")
             }
+            ParsedCommand::Inventory => {
+                print_box("Your inventory:");
+                if state.inventory.items.is_empty() {
+                    println!("    (empty)")
+                }
+                for item in state.inventory.items.iter() {
+                    match item.max_quantity {
+                        Some(_) => {
+                            println!("  • {} ({})", item.name, item.quantity);
+                        }
+                        None => {
+                            println!("  • {}", item.name);
+                        }
+                    }
+                    println!("");
+                }
+            }
             ParsedCommand::Message(message) => println!("{}", message),
+            ParsedCommand::Restart => {
+                if prompt_yes_no("Are you sure you want to erase your game and restart?") {
+                    return GameLoopResponse::Restart;
+                } else {
+                    println!("Let's keep playing!");
+                }
+            }
+        }
+    }
+}
+
+fn print_box(text: &str) {
+    let len = text.len() + 2;
+    print!("╔");
+    for _ in 0..len {
+        print!("═");
+    }
+    print!("╗\n");
+
+    println!("║ {} ║", text);
+
+    print!("╚");
+    for _ in 0..len {
+        print!("═");
+    }
+    print!("╝\n");
+}
+
+fn prompt_yes_no(message: &str) -> bool {
+    loop {
+        println!("{} (yes, no)", message);
+        let response = get_prompt();
+        match response.as_str() {
+            "yes" | "y" => {
+                return true;
+            }
+            "no" | "n" => {
+                return false;
+            }
+            _ => {
+                println!("What was that?");
+            }
         }
     }
 }

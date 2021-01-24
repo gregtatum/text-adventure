@@ -1,6 +1,20 @@
 ---
 coord:
   x: 12
-  y: 6
+  y: 8
   z: 0
-debug: true
+debug: false
+inventory:
+  items:
+    - id: gold
+      name: Coin Purse
+      aka:
+        - gold
+        - coins
+        - money
+        - coin
+        - purse
+      sticky: true
+      variant: Money
+      quantity: 17
+      max_quantity: 1000000

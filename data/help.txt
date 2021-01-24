@@ -1,13 +1,15 @@
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ Commands:                                                                              │
 └────────────────────────────────────────────────────────────────────────────────────────┘
-  north           Go north (Also: n)
-  south           Go south (Also: s)
-  east            Go east  (Also: e)
-  west            Go west  (Also: w)
+  north           Go north (Also: n, go north)
+  south           Go south (Also: s, go south)
+  east            Go east  (Also: e, go east)
+  west            Go west  (Also: w, go west)
 
   talk [person]   Talk to a person
   look [thing]    Look at something in more detail
   look            Look at the room again
+  inventory       Look at your inventory (Also: inv)
 
   quit            Quit the game (Also: q, exit)
+  restart         Delete your save, and restart the game.

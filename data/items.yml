@@ -1,0 +1,28 @@
+- id: grilled-rat
+  name: Grilled Rat
+  aka: [rat]
+  variant: Consumable
+  description: |
+    An anonymous piece of meat, artisanally cooked on a wooden skewer
+- id: mysterious-meat
+  name: Mysterious Meat
+  aka: [meat]
+  variant: Consumable
+  description: |
+    An anonymous piece of meat, artisanally cooked on a wooden skewer
+- id: sword
+  name: Sword
+  aka: []
+  variant: Weapon
+  description: |
+    A fairly basic looking sword, with some signs of wear. It is well oiled and
+    sharpened, ready to use.
+- id: gold
+  name: Coin Purse
+  aka: [gold, purse, coin, coins, money]
+  sticky: true
+  variant: Money
+  max_quantity: 1000000
+  quantity: 17
+  description: |
+    Your coin purse is tied to your belt.
