@@ -84,6 +84,16 @@ struct Room {
     actions: Option<Vec<Action>>,
     #[serde(default)]
     cached_formatted_description: RefCell<String>,
+    #[serde(default)]
+    items: Vec<RoomItem>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct RoomItem {
+    id: String,
+    quantity: usize,
+    name: Option<String>,
+    pickup: Option<String>,
 }
 
 impl Room {
@@ -117,10 +127,29 @@ impl Room {
             *formatted_description = formatted_lines.join("");
         }
         println!("{}", formatted_description);
+
+        for (room_item, inv_item) in state
+            .room_inventories
+            .get(&self.coord)
+            .expect("room inventory")
+            .iter()
+        {
+            let name = match room_item.name {
+                Some(ref name) => name,
+                None => &inv_item.name,
+            };
+            println!("{}", name);
+        }
+
+        if !self.items.is_empty() {
+            println!();
+        }
+
         if state.debug {
             let Coord { x, y, z } = state.coord;
             println!("Coord: [{}, {}, {}]", x, y, z);
         }
+
         print_exits(room_map_info);
     }
 
@@ -479,7 +508,7 @@ where
                         eprintln!("{}", line);
                     }
                     if line_index == location.line() - 1 {
-                        for _ in 0..location.line() {
+                        for _ in 0..location.column() {
                             print!(" ");
                         }
                         println!("^ {}", err);
@@ -514,9 +543,13 @@ impl ItemDatabase {
 
 #[derive(Serialize, Deserialize)]
 struct GameState {
+    /// The current room coordinate.
     coord: Coord,
+    /// Turn on debug logging.
     debug: bool,
+    /// The player's inventory.
     inventory: Inventory,
+    room_inventories: HashMap<Coord, Vec<(RoomItem, InventoryItem)>>,
 }
 
 impl GameState {
@@ -529,6 +562,21 @@ impl GameState {
                 item_db.get("sword").clone(),
                 item_db.get("gold").clone(),
             ]),
+            room_inventories: {
+                let mut room_inventories = HashMap::new();
+                for room in level.rooms.iter() {
+                    let mut room_inventory: Vec<(RoomItem, InventoryItem)> = Vec::new();
+                    // Fill the room item in with the actual item from the item db.
+                    for room_item in room.items.iter() {
+                        let mut room_item = room_item.clone();
+                        let mut inventory_item = item_db.get(&room_item.id).clone();
+                        inventory_item.quantity = room_item.quantity;
+                        room_inventory.push((room_item, inventory_item));
+                    }
+                    room_inventories.insert(room.coord, room_inventory);
+                }
+                room_inventories
+            },
         }
     }
 }

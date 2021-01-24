@@ -18,7 +18,7 @@
     A fairly basic looking sword, with some signs of wear. It is well oiled and
     sharpened, ready to use.
 - id: gold
-  name: Coin Purse
+  name: Gold
   aka: [gold, purse, coin, coins, money]
   sticky: true
   variant: Money

@@ -75,6 +75,10 @@ rooms:
         value: |
           The docks are bustling with activity. Goods are being unloaded. Customs
           agents are taking looking over the bills of carry.
+      - verb: Talk
+        targets: [guard]
+        value: |
+            The guard glares at you and says, "Welcome to Stone End, now scram!"
 
   - title: Stone End Market Road
     coord: [12, 7, 0]
@@ -138,6 +142,12 @@ rooms:
         targets: [merchant, merchants]
         value: |
           There aren't any merchants next to you. Go further into the market.
+    items:
+      - id: gold
+        quantity: 1
+        targets: [gold, gold piece, metal, dull, piece]
+        name: A dull piece of metal is embedded between two cobblestones.
+        pickup: It turns out it was a gold piece. Today is your lucky day.
     regions: [market]
   - title: The Door to the Stone End Keep
     coord: [12, 4, 0]
