@@ -3,8 +3,10 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     fs,
+    iter::Peekable,
     path::PathBuf,
     process,
+    str::SplitWhitespace,
 };
 
 const LINE_WIDTH: usize = 90;
@@ -340,10 +342,6 @@ enum ParsedCommand {
     Restart,
 }
 
-enum CommandParseError {
-    PrepositionError(String),
-}
-
 #[derive(Serialize, Deserialize)]
 struct Inventory {
     pub items: Vec<InventoryItem>,
@@ -394,68 +392,80 @@ impl Inventory {
     }
 }
 
-fn parse_command_target(parts: &Vec<&str>) -> Result<Option<String>, CommandParseError> {
-    if parts.len() == 1 || parts.len() == 0 {
-        return Ok(None);
+fn parse_command_target(
+    command: &str,
+    words: &mut Peekable<SplitWhitespace>,
+) -> Result<Option<String>, String> {
+    let word = match words.next() {
+        Some(word) => word,
+        None => return Ok(None),
+    };
+
+    let mut target: String = match word {
+        "at" | "to" | "in" => {
+            if words.peek().is_none() {
+                return Err(format!("{} {}... what?", command, word));
+            }
+            String::new()
+        }
+        _ => word.to_string(),
+    };
+
+    while let Some(word) = words.next() {
+        target.push_str(word);
+        if words.peek().is_some() {
+            target.push(' ');
+        }
     }
 
-    let word = parts.get(1).unwrap();
-    match word {
-        &"at" | &"to" | &"in" => {
-            if parts.len() == 2 {
-                Err(CommandParseError::PrepositionError(word.to_string()))
-            } else {
-                Ok(Some(parts[2..].join(" ")))
-            }
-        }
-        _ => Ok(Some(parts[1..].join(" "))),
-    }
+    Ok(Some(target))
 }
 
-fn parse_command(input: String) -> ParsedCommand {
-    let parts: Vec<&str> = input.split(' ').collect();
-    if parts.is_empty() {
-        return ParsedCommand::Look(None);
-    }
-    let command = *parts.get(0).unwrap();
-    let target = match parse_command_target(&parts) {
-        Ok(target) => target,
-        Err(CommandParseError::PrepositionError(preposition)) => {
-            return ParsedCommand::Message(format!("{} {} what?", command, preposition));
+fn parse_command(input: String) -> Result<ParsedCommand, String> {
+    let mut words = input.split_whitespace().peekable();
+    let command = match words.next() {
+        Some(command) => command,
+        None => {
+            // No input was given.
+            return Ok(ParsedCommand::Look(None));
         }
     };
 
     match command {
-        "look" | "l" => ParsedCommand::Look(target),
-        "talk" | "t" => ParsedCommand::Talk(target),
-        "north" | "n" => ParsedCommand::Move(Direction::North),
-        "east" | "e" => ParsedCommand::Move(Direction::East),
-        "south" | "s" => ParsedCommand::Move(Direction::South),
-        "west" | "w" => ParsedCommand::Move(Direction::West),
-        "inventory" | "inv" => ParsedCommand::Inventory,
-        "go" => match target {
+        "look" | "l" => Ok(ParsedCommand::Look(parse_command_target(
+            &command, &mut words,
+        )?)),
+        "talk" | "t" => Ok(ParsedCommand::Talk(parse_command_target(
+            &command, &mut words,
+        )?)),
+        "north" | "n" => Ok(ParsedCommand::Move(Direction::North)),
+        "east" | "e" => Ok(ParsedCommand::Move(Direction::East)),
+        "south" | "s" => Ok(ParsedCommand::Move(Direction::South)),
+        "west" | "w" => Ok(ParsedCommand::Move(Direction::West)),
+        "inventory" | "inv" => Ok(ParsedCommand::Inventory),
+        "go" => match parse_command_target(&command, &mut words)? {
             Some(ref s) => match s.as_str() {
-                "north" => ParsedCommand::Move(Direction::North),
-                "east" => ParsedCommand::Move(Direction::East),
-                "south" => ParsedCommand::Move(Direction::South),
-                "west" => ParsedCommand::Move(Direction::West),
-                _ => ParsedCommand::Message(format!("You don't know how to go {:?}", s)),
+                "north" => Ok(ParsedCommand::Move(Direction::North)),
+                "east" => Ok(ParsedCommand::Move(Direction::East)),
+                "south" => Ok(ParsedCommand::Move(Direction::South)),
+                "west" => Ok(ParsedCommand::Move(Direction::West)),
+                _ => Err(format!("You don't know how to go {:?}", s)),
             },
-            None => ParsedCommand::Message("Where do you want to go?".into()),
+            None => Ok(ParsedCommand::Message("Where do you want to go?".into())),
         },
-        "" => ParsedCommand::Message("".into()),
-        "help" => ParsedCommand::Help,
-        "debug" => ParsedCommand::Debug,
-        "drop" => match target {
-            Some(target) => ParsedCommand::Drop(target),
-            None => ParsedCommand::Message("You stop drop and roll.".into()),
+        "" => Ok(ParsedCommand::Message("".into())),
+        "help" => Ok(ParsedCommand::Help),
+        "debug" => Ok(ParsedCommand::Debug),
+        "drop" => match parse_command_target(&command, &mut words)? {
+            Some(target) => Ok(ParsedCommand::Drop(target)),
+            None => Ok(ParsedCommand::Message("You stop drop and roll.".into())),
         },
-        "quit" | "q" | "exit" => ParsedCommand::Quit,
-        "restart" => ParsedCommand::Restart,
-        _ => ParsedCommand::Message(format!(
+        "quit" | "q" | "exit" => Ok(ParsedCommand::Quit),
+        "restart" => Ok(ParsedCommand::Restart),
+        _ => Ok(ParsedCommand::Message(format!(
             "You don't know how to {:?}. Type \"help\" for help.",
             command
-        )),
+        ))),
     }
 }
 
@@ -568,7 +578,7 @@ impl GameState {
                     let mut room_inventory: Vec<(RoomItem, InventoryItem)> = Vec::new();
                     // Fill the room item in with the actual item from the item db.
                     for room_item in room.items.iter() {
-                        let mut room_item = room_item.clone();
+                        let room_item = room_item.clone();
                         let mut inventory_item = item_db.get(&room_item.id).clone();
                         inventory_item.quantity = room_item.quantity;
                         room_inventory.push((room_item, inventory_item));
@@ -631,7 +641,7 @@ fn game_loop() -> GameLoopResponse {
         let string = get_prompt();
         // Add a newline after the prompt.
         println!("");
-        match parse_command(string) {
+        match parse_command(string).unwrap_or_else(|message| ParsedCommand::Message(message)) {
             ParsedCommand::Look(Some(target)) => match room.find_action(Verb::Look, &target) {
                 Some(action) => {
                     println!("{}", action.value);
