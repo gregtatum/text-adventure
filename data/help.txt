@@ -10,6 +10,7 @@
   look [thing]    Look at something in more detail
   look            Look at the room again
   inventory       Look at your inventory (Also: inv)
+  take            Take something (Also pick up, grab, pickup)
 
   quit            Quit the game (Also: q, exit)
   restart         Delete your save, and restart the game.

@@ -1,25 +1,25 @@
 - id: grilled-rat
   name: Grilled Rat
-  aka: [rat]
+  targets: [rat]
   variant: Consumable
   description: |
     An anonymous piece of meat, artisanally cooked on a wooden skewer
 - id: mysterious-meat
   name: Mysterious Meat
-  aka: [meat]
+  targets: [meat]
   variant: Consumable
   description: |
     An anonymous piece of meat, artisanally cooked on a wooden skewer
 - id: sword
   name: Sword
-  aka: []
+  targets: [sword]
   variant: Weapon
   description: |
     A fairly basic looking sword, with some signs of wear. It is well oiled and
     sharpened, ready to use.
 - id: gold
   name: Gold
-  aka: [gold, purse, coin, coins, money]
+  targets: [gold, purse, coin, coins, money]
   sticky: true
   variant: Money
   max_quantity: 1000000

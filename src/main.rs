@@ -95,7 +95,20 @@ struct RoomItem {
     id: String,
     quantity: usize,
     name: Option<String>,
+    targets: HashSet<String>,
     pickup: Option<String>,
+}
+
+impl From<&InventoryItem> for RoomItem {
+    fn from(inventor_item: &InventoryItem) -> RoomItem {
+        RoomItem {
+            id: inventor_item.id.clone(),
+            quantity: inventor_item.quantity,
+            name: None,
+            targets: HashSet::new(),
+            pickup: None,
+        }
+    }
 }
 
 impl Room {
@@ -130,16 +143,12 @@ impl Room {
         }
         println!("{}", formatted_description);
 
-        for (room_item, inv_item) in state
+        for name in state
             .room_inventories
             .get(&self.coord)
             .expect("room inventory")
-            .iter()
+            .names()
         {
-            let name = match room_item.name {
-                Some(ref name) => name,
-                None => &inv_item.name,
-            };
             println!("{}", name);
         }
 
@@ -337,6 +346,7 @@ enum ParsedCommand {
     Help,
     Move(Direction),
     Drop(String),
+    Take(String),
     Quit,
     Debug,
     Restart,
@@ -353,6 +363,15 @@ impl From<Vec<InventoryItem>> for Inventory {
     }
 }
 
+impl Inventory {
+    fn add_item(&mut self, new_item: InventoryItem) {
+        match self.items.iter_mut().find(|item| item.id == new_item.id) {
+            Some(item) => item.quantity += new_item.quantity,
+            None => self.items.push(new_item),
+        }
+    }
+}
+
 enum DropResult {
     Item(InventoryItem),
     Sticky,
@@ -366,7 +385,7 @@ impl Inventory {
             .items
             .iter()
             .enumerate()
-            .find(|(_, item)| item.name.to_lowercase() == name || item.aka.contains(name));
+            .find(|(_, item)| item.name.to_lowercase() == name || item.targets.contains(name));
 
         match tuple {
             Some((index, item)) => {
@@ -402,7 +421,7 @@ fn parse_command_target(
     };
 
     let mut target: String = match word {
-        "at" | "to" | "in" => {
+        "at" | "to" | "in" | "up" => {
             if words.peek().is_none() {
                 return Err(format!("{} {}... what?", command, word));
             }
@@ -460,6 +479,15 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
             Some(target) => Ok(ParsedCommand::Drop(target)),
             None => Ok(ParsedCommand::Message("You stop drop and roll.".into())),
         },
+        "pick" | "pickup" | "take" | "grab" => match parse_command_target(&command, &mut words)? {
+            Some(target) => Ok(ParsedCommand::Take(target)),
+            None => match command {
+                "pick" => Err(format!("You pick your nose. Gross.")),
+                _ => Err(format!(
+                    "This relationship is on the rocks, all you do is take take take."
+                )),
+            },
+        },
         "quit" | "q" | "exit" => Ok(ParsedCommand::Quit),
         "restart" => Ok(ParsedCommand::Restart),
         _ => Ok(ParsedCommand::Message(format!(
@@ -480,7 +508,7 @@ enum ItemVariant {
 struct InventoryItem {
     id: String,
     name: String,
-    aka: HashSet<String>,
+    targets: HashSet<String>,
     #[serde(default)]
     sticky: bool,
     variant: ItemVariant,
@@ -559,7 +587,70 @@ struct GameState {
     debug: bool,
     /// The player's inventory.
     inventory: Inventory,
-    room_inventories: HashMap<Coord, Vec<(RoomItem, InventoryItem)>>,
+    room_inventories: HashMap<Coord, RoomInventory>,
+}
+
+impl GameState {
+    fn room_inventory(&mut self) -> &mut RoomInventory {
+        self.room_inventories
+            .get_mut(&self.coord)
+            .expect("Could not find a room inventory.")
+    }
+
+    fn room_inventory_mut(&mut self) -> &mut RoomInventory {
+        self.room_inventories
+            .get_mut(&self.coord)
+            .expect("Could not find a room inventory.")
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct RoomInventory {
+    inventory: Vec<(RoomItem, InventoryItem)>,
+}
+
+impl From<Vec<(RoomItem, InventoryItem)>> for RoomInventory {
+    fn from(inventory: Vec<(RoomItem, InventoryItem)>) -> RoomInventory {
+        RoomInventory { inventory }
+    }
+}
+
+impl RoomInventory {
+    pub fn take_item(&mut self, id: &str) -> Option<(RoomItem, InventoryItem)> {
+        let mut inventory = Vec::new();
+        let mut found_item = None;
+        for item in self.inventory.drain(..) {
+            let (ref room_item, ref inventory_item) = item;
+            if found_item.is_some() {
+                inventory.push(item);
+            } else if room_item.targets.contains(id) {
+                found_item = Some(item);
+            } else if inventory_item.targets.contains(id) {
+                found_item = Some(item);
+            } else {
+                inventory.push(item);
+            }
+        }
+        self.inventory = inventory;
+        found_item
+    }
+
+    fn add_item(&mut self, inventory_item: InventoryItem) {
+        self.inventory
+            .push((RoomItem::from(&inventory_item), inventory_item));
+    }
+
+    pub fn names(&self) -> Vec<&str> {
+        let mut names = Vec::new();
+        for (room_item, inv_item) in self.inventory.iter() {
+            let name = match room_item.name {
+                Some(ref name) => name.as_str(),
+                None => &inv_item.name,
+            };
+            names.push(name)
+        }
+        names
+    }
 }
 
 impl GameState {
@@ -583,7 +674,7 @@ impl GameState {
                         inventory_item.quantity = room_item.quantity;
                         room_inventory.push((room_item, inventory_item));
                     }
-                    room_inventories.insert(room.coord, room_inventory);
+                    room_inventories.insert(room.coord, RoomInventory::from(room_inventory));
                 }
                 room_inventories
             },
@@ -600,8 +691,11 @@ fn main() {
     loop {
         match game_loop() {
             GameLoopResponse::Restart => {
-                fs::remove_file(PathBuf::from("data/save-state.yml"))
-                    .expect("Unable to remove the save file.");
+                let save_file = PathBuf::from("data/save-state.yml");
+                if save_file.exists() {
+                    fs::remove_file(PathBuf::from("data/save-state.yml"))
+                        .expect("Unable to remove the save file.");
+                }
             }
             GameLoopResponse::Quit => {
                 println!("Thanks for playing!");
@@ -678,12 +772,29 @@ fn game_loop() -> GameLoopResponse {
             ParsedCommand::Drop(target) => match state.inventory.drop_item(&target) {
                 DropResult::Item(item) => {
                     println!("You dropped the {}.", item.name);
+                    state.room_inventory_mut().add_item(item);
                 }
                 DropResult::Sticky => {
                     println!("The {} appear(s) to be sticking to your hand.", target)
                 }
                 DropResult::None => {
                     println!("It does not look like you have a {}.", target);
+                }
+            },
+            ParsedCommand::Take(target) => match state.room_inventory_mut().take_item(&target) {
+                Some((room_item, inventory_item)) => {
+                    state.inventory.add_item(inventory_item);
+                    match room_item.pickup {
+                        Some(pickup) => {
+                            println!("{}", pickup)
+                        }
+                        None => {
+                            println!("You place the {} in your inventory.", target)
+                        }
+                    }
+                }
+                None => {
+                    println!("You couldn't find a {} to take.", target);
                 }
             },
             ParsedCommand::Quit => {
