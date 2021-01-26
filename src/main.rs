@@ -65,13 +65,13 @@ impl Coord {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 enum Verb {
     Talk,
     Look,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Action {
     verb: Verb,
     targets: Vec<String>,
@@ -83,7 +83,7 @@ struct Region {
     actions: Vec<Action>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Room {
     title: String,
     coord: Coord,
@@ -121,7 +121,7 @@ impl Room {
             .find(|npc| npc.targets.contains(target))
     }
 
-    fn print_description(&self, state: &GameState, room_map_info: &RoomMapInfo) {
+    fn print_description(&self, save_state: &SaveState, room_map_info: &RoomMapInfo) {
         println!("{}\n", self.title);
 
         let mut formatted_description = self.cached_formatted_description.borrow_mut();
@@ -152,7 +152,7 @@ impl Room {
         }
         println!("{}", formatted_description);
 
-        for name in state
+        for name in save_state
             .room_inventories
             .get(&self.coord)
             .expect("room inventory")
@@ -165,8 +165,8 @@ impl Room {
             println!();
         }
 
-        if state.debug {
-            let Coord { x, y, z } = state.coord;
+        if save_state.debug {
+            let Coord { x, y, z } = save_state.coord;
             println!("Coord: [{}, {}, {}]", x, y, z);
         }
 
@@ -302,7 +302,7 @@ fn print_text_file(path_str: &str) {
     println!("{}", text);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RoomMapInfo {
     north: Option<Coord>,
     east: Option<Coord>,
@@ -606,6 +606,7 @@ struct InventoryItem {
     quantity: usize,
     #[serde(default)]
     max_quantity: Option<usize>,
+    description: String,
 }
 
 struct ItemDatabase {
@@ -669,8 +670,47 @@ impl ItemDatabase {
     }
 }
 
+struct Game<'a> {
+    level: Level,
+    room: Room,
+    item_db: &'a ItemDatabase,
+    save_state: SaveState,
+    lookup_room_info: HashMap<Coord, RoomMapInfo>,
+    room_info: RoomMapInfo,
+}
+
+impl<'a> Game<'a> {
+    fn new(item_db: &ItemDatabase) -> Game {
+        let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
+        let save_state = {
+            let path = PathBuf::from("data/save-state.yml");
+            if path.exists() {
+                parse_yml(&"data/save-state.yml".into())
+            } else {
+                SaveState::initialize(&item_db, &level)
+            }
+        };
+        let lookup_room_info = parse_map(&level);
+        let room = (*level
+            .get_room(&save_state.coord)
+            .expect("Unable to find the entry room."))
+        .clone();
+
+        let room_info = (*lookup_room_info.get(&save_state.coord).unwrap()).clone();
+
+        Game {
+            level,
+            room,
+            item_db,
+            save_state,
+            lookup_room_info,
+            room_info,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
-struct GameState {
+struct SaveState {
     /// The current room coordinate.
     coord: Coord,
     /// Turn on debug logging.
@@ -680,7 +720,7 @@ struct GameState {
     room_inventories: HashMap<Coord, RoomInventory>,
 }
 
-impl GameState {
+impl SaveState {
     fn room_inventory(&mut self) -> &mut RoomInventory {
         self.room_inventories
             .get_mut(&self.coord)
@@ -740,9 +780,9 @@ impl RoomInventory {
     }
 }
 
-impl GameState {
-    fn initialize(item_db: &ItemDatabase, level: &Level) -> GameState {
-        GameState {
+impl SaveState {
+    fn initialize(item_db: &ItemDatabase, level: &Level) -> SaveState {
+        SaveState {
             coord: level.entry,
             debug: false,
             inventory: Inventory::from(vec![
@@ -793,26 +833,12 @@ fn main() {
 }
 
 fn game_loop() -> GameLoopResponse {
-    let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
     let item_db = ItemDatabase::new();
-    let mut state: GameState = {
-        let path = PathBuf::from("data/save-state.yml");
-        if path.exists() {
-            parse_yml(&"data/save-state.yml".into())
-        } else {
-            GameState::initialize(&item_db, &level)
-        }
-    };
-
-    let mut room = level
-        .get_room(&state.coord)
-        .expect("Unable to find the entry room.");
-
-    let lookup_room_info = parse_map(&level);
-    let mut room_info = lookup_room_info.get(&state.coord).unwrap();
+    let mut game = Game::new(&item_db);
 
     print_text_file("data/intro.txt");
-    room.print_description(&state, &room_info);
+    game.room
+        .print_description(&game.save_state, &game.room_info);
 
     loop {
         let string = get_prompt();
@@ -820,19 +846,28 @@ fn game_loop() -> GameLoopResponse {
         println!("");
         match parse_command(string).unwrap_or_else(|message| ParsedCommand::Message(message)) {
             ParsedCommand::Look(Some(target)) => {
-                look_command(&level, &room, &item_db, &target);
+                look_command(&game, &target);
             }
-            ParsedCommand::Look(None) => room.print_description(&state, &room_info),
+            ParsedCommand::Look(None) => game
+                .room
+                .print_description(&game.save_state, &game.room_info),
             ParsedCommand::Help => print_text_file("data/help.txt"),
             ParsedCommand::Move(direction) => {
-                match room_info.from_direction(&direction) {
+                let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
+
+                match next_coord {
                     Some(next_coord) => {
-                        state.coord = next_coord.clone();
-                        room_info = lookup_room_info.get(&state.coord).unwrap();
-                        room = level
+                        game.save_state.coord = next_coord.clone();
+                        game.room_info =
+                            (game.lookup_room_info.get(&game.save_state.coord).unwrap()).clone();
+
+                        game.room = game
+                            .level
                             .get_room(&next_coord)
-                            .expect("Expected to find a room.");
-                        room.print_description(&state, &room_info);
+                            .expect("Expected to find a room.")
+                            .clone();
+                        game.room
+                            .print_description(&game.save_state, &game.room_info);
                     }
                     None => {
                         eprintln!("You cannot move {}.", direction.lowercase_string());
@@ -840,17 +875,17 @@ fn game_loop() -> GameLoopResponse {
                 };
             }
             ParsedCommand::Debug => {
-                state.debug = !state.debug;
-                if state.debug {
+                game.save_state.debug = !game.save_state.debug;
+                if game.save_state.debug {
                     println!("Debug mode activated.");
                 } else {
                     println!("Debug mode de-activated.");
                 }
             }
-            ParsedCommand::Drop(target) => match state.inventory.drop_item(&target) {
+            ParsedCommand::Drop(target) => match game.save_state.inventory.drop_item(&target) {
                 DropResult::Item(item) => {
                     println!("You dropped the {}.", item.name);
-                    state.room_inventory_mut().add_item(item);
+                    game.save_state.room_inventory_mut().add_item(item);
                 }
                 DropResult::Sticky => {
                     println!("The {} appear(s) to be sticking to your hand.", target)
@@ -859,32 +894,34 @@ fn game_loop() -> GameLoopResponse {
                     println!("It does not look like you have a {}.", target);
                 }
             },
-            ParsedCommand::Take(target) => match state.room_inventory_mut().take_item(&target) {
-                Some((room_item, inventory_item)) => {
-                    state.inventory.add_item(inventory_item);
-                    match room_item.pickup {
-                        Some(pickup) => {
-                            println!("{}", pickup)
-                        }
-                        None => {
-                            println!("You place the {} in your inventory.", target)
+            ParsedCommand::Take(target) => {
+                match game.save_state.room_inventory_mut().take_item(&target) {
+                    Some((room_item, inventory_item)) => {
+                        game.save_state.inventory.add_item(inventory_item);
+                        match room_item.pickup {
+                            Some(pickup) => {
+                                println!("{}", pickup)
+                            }
+                            None => {
+                                println!("You place the {} in your inventory.", target)
+                            }
                         }
                     }
+                    None => {
+                        println!("You couldn't find a {} to take.", target);
+                    }
                 }
-                None => {
-                    println!("You couldn't find a {} to take.", target);
-                }
-            },
+            }
             ParsedCommand::Quit => {
                 let path = PathBuf::from("data/save-state.yml");
-                let yml =
-                    serde_yaml::to_string(&state).expect("Unable to serialize the game state.");
+                let yml = serde_yaml::to_string(&game.save_state)
+                    .expect("Unable to serialize the game state.");
                 fs::write(path, yml).expect("Unable to save the game state.");
 
                 return GameLoopResponse::Quit;
             }
             ParsedCommand::Talk(Some(target)) => {
-                match room.find_action(Verb::Talk, &target, &level) {
+                match game.room.find_action(Verb::Talk, &target, &game.level) {
                     Some(action) => {
                         println!("{}", action.value);
                     }
@@ -898,10 +935,10 @@ fn game_loop() -> GameLoopResponse {
             }
             ParsedCommand::Inventory => {
                 print_box("Your inventory:");
-                if state.inventory.items.is_empty() {
+                if game.save_state.inventory.items.is_empty() {
                     println!("    (empty)")
                 }
-                for item in state.inventory.items.iter() {
+                for item in game.save_state.inventory.items.iter() {
                     match item.max_quantity {
                         Some(_) => {
                             println!("  ‣ {} ({})", item.name, item.quantity);
@@ -960,21 +997,43 @@ fn prompt_yes_no(message: &str) -> bool {
     }
 }
 
-fn look_command(level: &Level, room: &Room, item_db: &ItemDatabase, target: &String) {
+fn look_command(game: &Game, target: &String) {
     // Look at something in the room through an action?
-    if let Some(action) = room.find_action(Verb::Look, &target, &level) {
+    if let Some(action) = game.room.find_action(Verb::Look, &target, &game.level) {
         println!("{}\n", action.value);
         return;
     }
 
     // Look at an npc?
-    if let Some(npc) = room.get_npc(&level, &target) {
+    if let Some(npc) = game.room.get_npc(&game.level, &target) {
         println!("{}\n", npc.description);
-        for (item, cost) in npc.items_iter(&item_db) {
+        for (item, cost) in npc.items_iter(&game.item_db) {
             println!("  ‣ {} ({} gp)", item.name, cost);
         }
         println!("");
         return;
+    }
+
+    // Look at an npc's item?
+    for npc in game.room.npcs_iter(&game.level) {
+        for sale_item in npc.items.iter() {
+            if *target == sale_item.id {
+                let item = game.item_db.get(target);
+                println!("{}\n", item.description);
+                return;
+            }
+        }
+    }
+
+    // Look at your own items?
+    for npc in game.room.npcs_iter(&game.level) {
+        for sale_item in npc.items.iter() {
+            if *target == sale_item.id {
+                let item = game.item_db.get(target);
+                println!("{}\n", item.description);
+                return;
+            }
+        }
     }
 
     println!("You don't see a {}.\n", target);
