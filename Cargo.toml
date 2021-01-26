@@ -3,6 +3,7 @@ name = "text-adventure"
 version = "0.1.0"
 authors = ["Greg Tatum <tatum.creative@gmail.com>"]
 edition = "2018"
+license = "GPLv3"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
