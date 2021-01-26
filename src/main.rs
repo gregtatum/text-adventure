@@ -722,12 +722,6 @@ struct SaveState {
 }
 
 impl SaveState {
-    fn room_inventory(&mut self) -> &mut RoomInventory {
-        self.room_inventories
-            .get_mut(&self.coord)
-            .expect("Could not find a room inventory.")
-    }
-
     fn room_inventory_mut(&mut self) -> &mut RoomInventory {
         self.room_inventories
             .get_mut(&self.coord)
