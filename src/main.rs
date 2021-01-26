@@ -6,6 +6,7 @@ use std::{
     iter::Peekable,
     path::PathBuf,
     process,
+    rc::Rc,
     str::SplitWhitespace,
 };
 
@@ -83,7 +84,7 @@ struct Region {
     actions: Vec<Action>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Room {
     title: String,
     coord: Coord,
@@ -265,14 +266,14 @@ impl NPC {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Level {
     maps: LevelMap,
-    rooms: Vec<Room>,
+    rooms: Vec<Rc<Room>>,
     entry: Coord,
     npcs: HashMap<String, NPC>,
     regions: HashMap<String, Region>,
 }
 
 impl Level {
-    fn get_room(&self, coord: &Coord) -> Option<&Room> {
+    fn get_room(&self, coord: &Coord) -> Option<&Rc<Room>> {
         self.rooms.iter().find(|room| room.coord == *coord)
     }
 }
@@ -672,7 +673,7 @@ impl ItemDatabase {
 
 struct Game<'a> {
     level: Level,
-    room: Room,
+    room: Rc<Room>,
     item_db: &'a ItemDatabase,
     save_state: SaveState,
     lookup_room_info: HashMap<Coord, RoomMapInfo>,
