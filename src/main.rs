@@ -156,7 +156,7 @@ impl Room {
             .room_inventories
             .get(&self.coord)
             .expect("room inventory")
-            .names()
+            .item_names_iter()
         {
             println!("{}", name);
         }
@@ -730,16 +730,13 @@ impl RoomInventory {
             .push((RoomItem::from(&inventory_item), inventory_item));
     }
 
-    pub fn names(&self) -> Vec<&str> {
-        let mut names = Vec::new();
-        for (room_item, inv_item) in self.inventory.iter() {
-            let name = match room_item.name {
+    pub fn item_names_iter<'a>(&'a self) -> impl Iterator<Item = &'a str> {
+        self.inventory
+            .iter()
+            .map(|(room_item, inv_item)| match room_item.name {
                 Some(ref name) => name.as_str(),
                 None => &inv_item.name,
-            };
-            names.push(name)
-        }
-        names
+            })
     }
 }
 
