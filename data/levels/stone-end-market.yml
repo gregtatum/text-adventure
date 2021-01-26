@@ -13,24 +13,28 @@ maps:
     - -----------#.#-------------- 8
     - -----------###-------------- 9
 entry: [12, 8, 0]
-entities:
-  - id: grill-merchant
+npcs:
+  grill-merchant:
     name: Grill Merchant
     description: |
       A greasy looking merchant stands before you. He is pushing a one wheeled cart
       that is loaded with grilled meat.
     targets: [grill merchant, merchant]
+    talk: |
+      He glares at you and says, "Whaddaya want? Are you lookin', or are you buyin'?"
     items:
       - id: grilled-rat
         cost: 2
       - id: mysterious-meat
         cost: 1
     count: 1
-  - id: apple-farmer
+  apple-farmer:
     name: Apple Farmer
     description: |
-      A sunburnt apple farmer stands before you. His skin appears to be peeling from a
-      recent sunburn. You smell... something boozy on his breath.
+      A sunburnt apple farmer stands before you. Her skin appears to be peeling from a
+      recent sunburn. You smell... something boozy on her breath.
+
+      She is selling apples.
     targets: [merchant, farmer, apple farmer]
     talk: |
       The farmer eyes you with a merry twinkle. "Would you like to buy something?
@@ -43,32 +47,31 @@ entities:
     - id: apple
       cost: 1
 regions:
-  - name: market
+  market:
     actions:
       - verb: Look
         targets: [keep, stone end, stone end keep, castle, walls]
         value:
           Stone End Keep is a towering structure that dominates the market. It is guarded
           and shut. Over the din of the market you can barely hear the sounds of shouting.
-    actions:
-      - verb: Attack
-        targets: [guard, guards]
-        value: |
-          You pull out your sword and approach a guard. You feel a thud. Looking down
-          you strangely see just the fletchings of an arrow attached to your chest.
-          Blood blooms from the hole and everything goes black.
-        outcome: Death
-    actions:
-      - verb: Attack
-        targets: [merchant]
-        value: |
-          The merchant screams as your sword splits their head in two. You attempt to pull
-          the sword free, but it is stuck. Before you know it, a guard has shoved a pike
-          into your side.
+      # TODO
+      # - verb: Attack
+      #   targets: [guard, guards]
+      #   value: |
+      #     You pull out your sword and approach a guard. You feel a thud. Looking down
+      #     you strangely see just the fletchings of an arrow attached to your chest.
+      #     Blood blooms from the hole and everything goes black.
+      #   outcome: Death
+      # - verb: Attack
+      #   targets: [merchant]
+      #   value: |
+      #     The merchant screams as your sword splits their head in two. You attempt to pull
+      #     the sword free, but it is stuck. Before you know it, a guard has shoved a pike
+      #     into your side.
 
-          You attempt to flee, but you lose consciousness as the blood leaks from your
-          side.
-        outcome: Death
+      #     You attempt to flee, but you lose consciousness as the blood leaks from your
+      #     side.
+      #   outcome: Death
 rooms:
   # --------------------------------------------------------------------------------------
   # The Docks
@@ -229,10 +232,10 @@ rooms:
     coord: [11, 5, 0]
     description: |
       Farmers have set up stalls selling the bounties of their harvest. In front of you
-      is an apple merchant. He is looking at you with sparkling eyes, trying to get
+      is an apple farmer. She is looking at you with sparkling eyes, trying to get
       your attention.
     regions: [market]
-    entities: [Apple Farmer]
+    npcs: [apple-farmer]
   # --------------------------------------------------------------------------------------
   # The Alley
   # --------------------------------------------------------------------------------------

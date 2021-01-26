@@ -79,6 +79,11 @@ struct Action {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Region {
+    actions: Vec<Action>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Room {
     title: String,
     coord: Coord,
@@ -88,30 +93,34 @@ struct Room {
     cached_formatted_description: RefCell<String>,
     #[serde(default)]
     items: Vec<RoomItem>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct RoomItem {
-    id: String,
-    quantity: usize,
-    name: Option<String>,
-    targets: HashSet<String>,
-    pickup: Option<String>,
-}
-
-impl From<&InventoryItem> for RoomItem {
-    fn from(inventor_item: &InventoryItem) -> RoomItem {
-        RoomItem {
-            id: inventor_item.id.clone(),
-            quantity: inventor_item.quantity,
-            name: None,
-            targets: HashSet::new(),
-            pickup: None,
-        }
-    }
+    #[serde(default)]
+    npcs: Vec<String>,
+    #[serde(default)]
+    regions: Vec<String>,
 }
 
 impl Room {
+    fn npcs_iter<'a>(&'a self, level: &'a Level) -> impl Iterator<Item = &'a NPC> {
+        self.npcs
+            .iter()
+            .map(move |npc_id| match level.npcs.get(npc_id) {
+                Some(npc) => npc,
+                None => {
+                    eprintln!("Unable to find an npc by the id {:?}", npc_id);
+                    eprintln!("The available NPCs are:");
+                    for key in level.npcs.keys() {
+                        eprintln!("  {:?}", key);
+                    }
+                    panic!();
+                }
+            })
+    }
+
+    fn get_npc<'a>(&'a self, level: &'a Level, target: &String) -> Option<&'a NPC> {
+        self.npcs_iter(&level)
+            .find(|npc| npc.targets.contains(target))
+    }
+
     fn print_description(&self, state: &GameState, room_map_info: &RoomMapInfo) {
         println!("{}\n", self.title);
 
@@ -164,13 +173,92 @@ impl Room {
         print_exits(room_map_info);
     }
 
-    fn find_action(&self, verb: Verb, target: &String) -> Option<&Action> {
-        match self.actions {
-            Some(ref actions) => actions
+    fn find_action<'a>(
+        &'a self,
+        verb: Verb,
+        target: &String,
+        level: &'a Level,
+    ) -> Option<&'a Action> {
+        // Check this room for the action.
+        if let Some(ref actions) = self.actions {
+            if let Some(action) = actions
                 .iter()
-                .find(|action| action.verb == verb && action.targets.contains(target)),
-            None => None,
+                .find(|action| action.verb == verb && action.targets.contains(target))
+            {
+                return Some(action);
+            };
         }
+
+        // The action could also be in a region. Find the actions for the regions.
+        for region in self.regions.iter() {
+            match level.regions.get(region) {
+                Some(region) => {
+                    if let Some(action) = region
+                        .actions
+                        .iter()
+                        .find(|action| action.verb == verb && action.targets.contains(target))
+                    {
+                        return Some(action);
+                    };
+                }
+                None => {
+                    eprintln!("Unable to find a region from the id {:?}", region);
+                    eprintln!("Available ids:");
+                    for region_id in level.regions.keys() {
+                        eprintln!("  {:?}", region_id);
+                    }
+                    panic!()
+                }
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct RoomItem {
+    id: String,
+    quantity: usize,
+    name: Option<String>,
+    targets: HashSet<String>,
+    pickup: Option<String>,
+}
+
+impl From<&InventoryItem> for RoomItem {
+    fn from(inventor_item: &InventoryItem) -> RoomItem {
+        RoomItem {
+            id: inventor_item.id.clone(),
+            quantity: inventor_item.quantity,
+            name: None,
+            targets: HashSet::new(),
+            pickup: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct SaleItem {
+    id: String,
+    cost: usize,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct NPC {
+    name: String,
+    description: String,
+    targets: Vec<String>,
+    talk: String,
+    items: Vec<SaleItem>,
+}
+
+impl NPC {
+    fn items_iter<'a>(
+        &'a self,
+        item_db: &'a ItemDatabase,
+    ) -> impl Iterator<Item = (&'a InventoryItem, usize)> {
+        self.items
+            .iter()
+            .map(move |SaleItem { ref id, ref cost }| (item_db.get(&id), *cost))
     }
 }
 
@@ -179,6 +267,8 @@ struct Level {
     maps: LevelMap,
     rooms: Vec<Room>,
     entry: Coord,
+    npcs: HashMap<String, NPC>,
+    regions: HashMap<String, Region>,
 }
 
 impl Level {
@@ -706,11 +796,7 @@ fn main() {
 }
 
 fn game_loop() -> GameLoopResponse {
-    let level: Level = {
-        let yml_string = fs::read_to_string(PathBuf::from("data/levels/stone-end-market.yml"))
-            .expect("Could not load the level yml file.");
-        serde_yaml::from_str(&yml_string).expect("Unable to parse the level")
-    };
+    let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
     let item_db = ItemDatabase::new();
     let mut state: GameState = {
         let path = PathBuf::from("data/save-state.yml");
@@ -722,7 +808,7 @@ fn game_loop() -> GameLoopResponse {
     };
 
     let mut room = level
-        .get_room(&level.entry)
+        .get_room(&state.coord)
         .expect("Unable to find the entry room.");
 
     let lookup_room_info = parse_map(&level);
@@ -736,14 +822,9 @@ fn game_loop() -> GameLoopResponse {
         // Add a newline after the prompt.
         println!("");
         match parse_command(string).unwrap_or_else(|message| ParsedCommand::Message(message)) {
-            ParsedCommand::Look(Some(target)) => match room.find_action(Verb::Look, &target) {
-                Some(action) => {
-                    println!("{}", action.value);
-                }
-                None => {
-                    println!("You don't see a {}.", target);
-                }
-            },
+            ParsedCommand::Look(Some(target)) => {
+                look_command(&level, &room, &item_db, &target);
+            }
             ParsedCommand::Look(None) => room.print_description(&state, &room_info),
             ParsedCommand::Help => print_text_file("data/help.txt"),
             ParsedCommand::Move(direction) => {
@@ -805,14 +886,16 @@ fn game_loop() -> GameLoopResponse {
 
                 return GameLoopResponse::Quit;
             }
-            ParsedCommand::Talk(Some(target)) => match room.find_action(Verb::Talk, &target) {
-                Some(action) => {
-                    println!("{}", action.value);
+            ParsedCommand::Talk(Some(target)) => {
+                match room.find_action(Verb::Talk, &target, &level) {
+                    Some(action) => {
+                        println!("{}", action.value);
+                    }
+                    None => {
+                        println!("You can't talk to {:?}", target);
+                    }
                 }
-                None => {
-                    println!("You can't talk to {:?}", target);
-                }
-            },
+            }
             ParsedCommand::Talk(None) => {
                 println!("You talk outloud for a bit and feel much better, thank you.")
             }
@@ -824,14 +907,14 @@ fn game_loop() -> GameLoopResponse {
                 for item in state.inventory.items.iter() {
                     match item.max_quantity {
                         Some(_) => {
-                            println!("  • {} ({})", item.name, item.quantity);
+                            println!("  ‣ {} ({})", item.name, item.quantity);
                         }
                         None => {
-                            println!("  • {}", item.name);
+                            println!("  ‣ {}", item.name);
                         }
                     }
-                    println!("");
                 }
+                println!("");
             }
             ParsedCommand::Message(message) => println!("{}", message),
             ParsedCommand::Restart => {
@@ -878,4 +961,24 @@ fn prompt_yes_no(message: &str) -> bool {
             }
         }
     }
+}
+
+fn look_command(level: &Level, room: &Room, item_db: &ItemDatabase, target: &String) {
+    // Look at something in the room through an action?
+    if let Some(action) = room.find_action(Verb::Look, &target, &level) {
+        println!("{}\n", action.value);
+        return;
+    }
+
+    // Look at an npc?
+    if let Some(npc) = room.get_npc(&level, &target) {
+        println!("{}\n", npc.description);
+        for (item, cost) in npc.items_iter(&item_db) {
+            println!("  ‣ {} ({} gp)", item.name, cost);
+        }
+        println!("");
+        return;
+    }
+
+    println!("You don't see a {}.\n", target);
 }
