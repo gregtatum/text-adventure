@@ -14,18 +14,34 @@ maps:
     - -----------###-------------- 9
 entry: [12, 8, 0]
 entities:
-  - type: Merchant
+  - id: grill-merchant
     name: Grill Merchant
     description: |
       A greasy looking merchant stands before you. He is pushing a one wheeled cart
       that is loaded with grilled meat.
+    targets: [grill merchant, merchant]
     items:
       - id: grilled-rat
         cost: 2
       - id: mysterious-meat
         cost: 1
-    regions: [market]
     count: 1
+  - id: apple-farmer
+    name: Apple Farmer
+    description: |
+      A sunburnt apple farmer stands before you. His skin appears to be peeling from a
+      recent sunburn. You smell... something boozy on his breath.
+    targets: [merchant, farmer, apple farmer]
+    talk: |
+      The farmer eyes you with a merry twinkle. "Would you like to buy something?
+      These apples are locally sourced from Buckleberry Farms. They make for great
+      eating as they are, or fermented in your next apple mash."
+
+      You see him happily pat some kind bulge in his pocket that from the smell of him,
+      you assume is a small bottle of apple jack.
+    items:
+    - id: apple
+      cost: 1
 regions:
   - name: market
     actions:
@@ -157,10 +173,16 @@ rooms:
     actions:
       - verb: Look
         targets: [gate]
-        value: The gate is made of solid beams of wood. It is reinforced with steel bands.
+        value: |
+          The gate is made of solid beams of wood. It is reinforced with steel bands.
+          In the distance, you think you might hear shouting and something that sounds
+          like clanging metal.
       - verb: Look
         targets: [walls]
-        value: The walls are hewed from limestone. They look around 30 feet tall.
+        value: |
+          The walls are hewed from limestone. They look around 30 feet tall.
+          In the distance, you think you might hear shouting and something that sounds
+          like clanging metal.
       - verb: Talk
         targets: [guards]
         value: They do not respond, but they tighten their grips on their pikes.
@@ -205,8 +227,12 @@ rooms:
     regions: [market]
   - title: South West Corner of the Market
     coord: [11, 5, 0]
-    description: TODO
+    description: |
+      Farmers have set up stalls selling the bounties of their harvest. In front of you
+      is an apple merchant. He is looking at you with sparkling eyes, trying to get
+      your attention.
     regions: [market]
+    entities: [Apple Farmer]
   # --------------------------------------------------------------------------------------
   # The Alley
   # --------------------------------------------------------------------------------------
