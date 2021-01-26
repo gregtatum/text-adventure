@@ -1,282 +1,17 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+mod commands;
+mod level;
+mod utils;
+
+use crate::utils::parse_yml;
+use level::{Coord, Direction, InventoryItem, ItemDatabase, Level, Room, RoomItem, Verb};
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    fs,
-    iter::Peekable,
-    path::PathBuf,
-    process,
-    rc::Rc,
-    str::SplitWhitespace,
+    collections::HashMap, iter::Peekable, path::PathBuf, process, rc::Rc, str::SplitWhitespace,
 };
 
 const LINE_WIDTH: usize = 90;
 const INDENT: usize = 4;
-
-// The YML representation of a level. This gets parsed as a utility to verify
-// the correct encoding of the level information.
-// [
-//     // Map 0
-//     [
-//         "---###---",
-//         "---#.#---",
-//         "---###---",
-//     ],
-//     // Map 1
-//     [
-//         "-#####---",
-//         "-#...#---",
-//         "-#####---",
-//     ],
-// ]
-type LevelMap = Vec<Vec<String>>;
-
-///
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize, Eq, Hash)]
-struct Coord {
-    x: usize,
-    y: usize,
-    z: usize,
-}
-
-impl Coord {
-    fn apply(&self, direction: &Direction) -> Coord {
-        match direction {
-            Direction::North => Coord {
-                x: self.x,
-                y: self.y - 1,
-                z: self.z,
-            },
-            Direction::East => Coord {
-                x: self.x + 1,
-                y: self.y,
-                z: self.z,
-            },
-            Direction::West => Coord {
-                x: self.x - 1,
-                y: self.y,
-                z: self.z,
-            },
-            Direction::South => Coord {
-                x: self.x,
-                y: self.y + 1,
-                z: self.z,
-            },
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-enum Verb {
-    Talk,
-    Look,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct Action {
-    verb: Verb,
-    targets: Vec<String>,
-    value: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Region {
-    actions: Vec<Action>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Room {
-    title: String,
-    coord: Coord,
-    description: String,
-    actions: Option<Vec<Action>>,
-    #[serde(default)]
-    cached_formatted_description: RefCell<String>,
-    #[serde(default)]
-    items: Vec<RoomItem>,
-    #[serde(default)]
-    npcs: Vec<String>,
-    #[serde(default)]
-    regions: Vec<String>,
-}
-
-impl Room {
-    fn npcs_iter<'a>(&'a self, level: &'a Level) -> impl Iterator<Item = &'a NPC> {
-        self.npcs
-            .iter()
-            .map(move |npc_id| match level.npcs.get(npc_id) {
-                Some(npc) => npc,
-                None => {
-                    eprintln!("Unable to find an npc by the id {:?}", npc_id);
-                    eprintln!("The available NPCs are:");
-                    for key in level.npcs.keys() {
-                        eprintln!("  {:?}", key);
-                    }
-                    panic!();
-                }
-            })
-    }
-
-    fn get_npc<'a>(&'a self, level: &'a Level, target: &String) -> Option<&'a NPC> {
-        self.npcs_iter(&level)
-            .find(|npc| npc.targets.contains(target))
-    }
-
-    fn print_description(&self, save_state: &SaveState, room_map_info: &RoomMapInfo) {
-        println!("{}\n", self.title);
-
-        let mut formatted_description = self.cached_formatted_description.borrow_mut();
-
-        if formatted_description.len() == 0 {
-            let paragraphs = self.description.split("\n\n");
-            let mut formatted_lines = Vec::new();
-            for paragraph in paragraphs {
-                let paragraph = paragraph.replace('\n', " ");
-                let mut formatted_line = " ".repeat(INDENT);
-                for word in paragraph.split(' ') {
-                    let word = word.trim();
-                    if word.is_empty() {
-                        continue;
-                    }
-                    if formatted_line.len() + word.len() > LINE_WIDTH {
-                        formatted_line.push('\n');
-                        formatted_lines.push(formatted_line);
-                        formatted_line = " ".repeat(INDENT);
-                    }
-                    formatted_line.push_str(word);
-                    formatted_line.push(' ');
-                }
-                formatted_lines.push(formatted_line);
-                formatted_lines.push(String::from("\n\n"));
-            }
-            *formatted_description = formatted_lines.join("");
-        }
-        println!("{}", formatted_description);
-
-        for name in save_state
-            .room_inventories
-            .get(&self.coord)
-            .expect("room inventory")
-            .item_names_iter()
-        {
-            println!("{}", name);
-        }
-
-        if !self.items.is_empty() {
-            println!();
-        }
-
-        if save_state.debug {
-            let Coord { x, y, z } = save_state.coord;
-            println!("Coord: [{}, {}, {}]", x, y, z);
-        }
-
-        print_exits(room_map_info);
-    }
-
-    fn find_action<'a>(
-        &'a self,
-        verb: Verb,
-        target: &String,
-        level: &'a Level,
-    ) -> Option<&'a Action> {
-        // Check this room for the action.
-        if let Some(ref actions) = self.actions {
-            if let Some(action) = actions
-                .iter()
-                .find(|action| action.verb == verb && action.targets.contains(target))
-            {
-                return Some(action);
-            };
-        }
-
-        // The action could also be in a region. Find the actions for the regions.
-        for region in self.regions.iter() {
-            match level.regions.get(region) {
-                Some(region) => {
-                    if let Some(action) = region
-                        .actions
-                        .iter()
-                        .find(|action| action.verb == verb && action.targets.contains(target))
-                    {
-                        return Some(action);
-                    };
-                }
-                None => {
-                    eprintln!("Unable to find a region from the id {:?}", region);
-                    eprintln!("Available ids:");
-                    for region_id in level.regions.keys() {
-                        eprintln!("  {:?}", region_id);
-                    }
-                    panic!()
-                }
-            }
-        }
-        None
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct RoomItem {
-    id: String,
-    quantity: usize,
-    name: Option<String>,
-    targets: HashSet<String>,
-    pickup: Option<String>,
-}
-
-impl From<&InventoryItem> for RoomItem {
-    fn from(inventor_item: &InventoryItem) -> RoomItem {
-        RoomItem {
-            id: inventor_item.id.clone(),
-            quantity: inventor_item.quantity,
-            name: None,
-            targets: HashSet::new(),
-            pickup: None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct SaleItem {
-    id: String,
-    cost: usize,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct NPC {
-    name: String,
-    description: String,
-    targets: Vec<String>,
-    talk: String,
-    items: Vec<SaleItem>,
-}
-
-impl NPC {
-    fn items_iter<'a>(
-        &'a self,
-        item_db: &'a ItemDatabase,
-    ) -> impl Iterator<Item = (&'a InventoryItem, usize)> {
-        self.items
-            .iter()
-            .map(move |SaleItem { ref id, ref cost }| (item_db.get(&id), *cost))
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Level {
-    maps: LevelMap,
-    rooms: Vec<Rc<Room>>,
-    entry: Coord,
-    npcs: HashMap<String, NPC>,
-    regions: HashMap<String, Region>,
-}
-
-impl Level {
-    fn get_room(&self, coord: &Coord) -> Option<&Rc<Room>> {
-        self.rooms.iter().find(|room| room.coord == *coord)
-    }
-}
 
 fn print_exits(room_map_info: &RoomMapInfo) {
     let mut exits = String::from("Exits:");
@@ -409,24 +144,6 @@ fn parse_map(level: &Level) -> HashMap<Coord, RoomMapInfo> {
     }
 
     room_map
-}
-
-enum Direction {
-    North,
-    East,
-    West,
-    South,
-}
-
-impl Direction {
-    fn lowercase_string(&self) -> &str {
-        match self {
-            Direction::North => "north",
-            Direction::East => "east",
-            Direction::West => "west",
-            Direction::South => "south",
-        }
-    }
 }
 
 enum ParsedCommand {
@@ -585,89 +302,6 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
             "You don't know how to {:?}. Type \"help\" for help.",
             command
         ))),
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-enum ItemVariant {
-    Consumable,
-    Weapon,
-    Money,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct InventoryItem {
-    id: String,
-    name: String,
-    targets: HashSet<String>,
-    #[serde(default)]
-    sticky: bool,
-    variant: ItemVariant,
-    #[serde(default)]
-    quantity: usize,
-    #[serde(default)]
-    max_quantity: Option<usize>,
-    description: String,
-}
-
-struct ItemDatabase {
-    items: Vec<InventoryItem>,
-}
-
-fn parse_yml<T>(path: &PathBuf) -> T
-where
-    T: DeserializeOwned,
-{
-    let yml_string = match fs::read_to_string(path) {
-        Ok(s) => s,
-        Err(_) => panic!("Could not load {:?}", path),
-    };
-
-    match serde_yaml::from_str(&yml_string) {
-        Ok(t) => t,
-        Err(err) => {
-            eprintln!("========================================================");
-            eprintln!("Unable to deserialize: {:?}", path);
-
-            if let Some(location) = err.location() {
-                eprintln!("========================================================");
-                let backscroll = 10;
-                let backscroll_index = location.line() - backscroll.min(location.line());
-                for (line_index, line) in yml_string.lines().enumerate() {
-                    if line_index > backscroll_index {
-                        eprintln!("{}", line);
-                    }
-                    if line_index == location.line() - 1 {
-                        for _ in 0..location.column() {
-                            print!(" ");
-                        }
-                        println!("^ {}", err);
-                        break;
-                    }
-                }
-            }
-            process::exit(1);
-
-            // panic!("Unable to deserialize {:?}\n{:?}", path, err)
-        }
-    }
-}
-
-impl ItemDatabase {
-    fn new() -> ItemDatabase {
-        ItemDatabase {
-            items: parse_yml(&"data/items.yml".into()),
-        }
-    }
-
-    fn get(&self, id: &str) -> &InventoryItem {
-        let item = self.items.iter().find(|item| item.id == id);
-        match item {
-            Some(item) => item,
-            None => {
-                panic!("Unable to find the item with the id {}", id);
-            }
-        }
     }
 }
 
@@ -832,8 +466,7 @@ fn game_loop() -> GameLoopResponse {
     let mut game = Game::new(&item_db);
 
     print_text_file("data/intro.txt");
-    game.room
-        .print_description(&game.save_state, &game.room_info);
+    print_room_description(&game.room, &game.save_state, &game.room_info);
 
     loop {
         let string = get_prompt();
@@ -843,9 +476,9 @@ fn game_loop() -> GameLoopResponse {
             ParsedCommand::Look(Some(target)) => {
                 look_command(&game, &target);
             }
-            ParsedCommand::Look(None) => game
-                .room
-                .print_description(&game.save_state, &game.room_info),
+            ParsedCommand::Look(None) => {
+                print_room_description(&game.room, &game.save_state, &game.room_info)
+            }
             ParsedCommand::Help => print_text_file("data/help.txt"),
             ParsedCommand::Move(direction) => {
                 let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
@@ -861,8 +494,7 @@ fn game_loop() -> GameLoopResponse {
                             .get_room(&next_coord)
                             .expect("Expected to find a room.")
                             .clone();
-                        game.room
-                            .print_description(&game.save_state, &game.room_info);
+                        print_room_description(&game.room, &game.save_state, &game.room_info);
                     }
                     None => {
                         eprintln!("You cannot move {}.", direction.lowercase_string());
@@ -1032,4 +664,56 @@ fn look_command(game: &Game, target: &String) {
     }
 
     println!("You don't see a {}.\n", target);
+}
+
+fn print_room_description(room: &Room, save_state: &SaveState, room_map_info: &RoomMapInfo) {
+    println!("{}\n", room.title);
+
+    let mut formatted_description = room.cached_formatted_description.borrow_mut();
+
+    if formatted_description.len() == 0 {
+        let paragraphs = room.description.split("\n\n");
+        let mut formatted_lines = Vec::new();
+        for paragraph in paragraphs {
+            let paragraph = paragraph.replace('\n', " ");
+            let mut formatted_line = " ".repeat(INDENT);
+            for word in paragraph.split(' ') {
+                let word = word.trim();
+                if word.is_empty() {
+                    continue;
+                }
+                if formatted_line.len() + word.len() > LINE_WIDTH {
+                    formatted_line.push('\n');
+                    formatted_lines.push(formatted_line);
+                    formatted_line = " ".repeat(INDENT);
+                }
+                formatted_line.push_str(word);
+                formatted_line.push(' ');
+            }
+            formatted_lines.push(formatted_line);
+            formatted_lines.push(String::from("\n\n"));
+        }
+        *formatted_description = formatted_lines.join("");
+    }
+    println!("{}", formatted_description);
+
+    for name in save_state
+        .room_inventories
+        .get(&room.coord)
+        .expect("room inventory")
+        .item_names_iter()
+    {
+        println!("{}", name);
+    }
+
+    if !room.items.is_empty() {
+        println!();
+    }
+
+    if save_state.debug {
+        let Coord { x, y, z } = save_state.coord;
+        println!("Coord: [{}, {}, {}]", x, y, z);
+    }
+
+    print_exits(room_map_info);
 }
