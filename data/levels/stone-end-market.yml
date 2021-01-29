@@ -219,6 +219,10 @@ rooms:
         targets: [merchant]
         value: |
           The merchant is too flustered to respond.
+      - verb: Help
+        targets: [mule]
+        value: |
+          He can't be helped
     regions: [market]
   - title: North East Corner of the Market
     coord: [13, 4, 0]

@@ -271,8 +271,9 @@ impl From<&InventoryItem> for RoomItem {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Verb {
-    Talk,
+    Help,
     Look,
+    Talk,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
