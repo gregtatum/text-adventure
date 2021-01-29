@@ -437,6 +437,9 @@ fn game_loop() -> GameLoopResponse {
                 print_room_description(&game.room, &game.save_state, &game.room_info)
             }
             ParsedCommand::Help => print_text_file("data/help.txt"),
+            //
+            // TODO - help target
+            //
             ParsedCommand::Move(direction) => {
                 let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
 
@@ -610,13 +613,11 @@ fn look_command(game: &Game, target: &String) {
     }
 
     // Look at your own items?
-    for npc in game.room.npcs_iter(&game.level) {
-        for sale_item in npc.items.iter() {
-            if *target == sale_item.id {
-                let item = game.item_db.get(target);
-                println!("{}\n", item.description);
-                return;
-            }
+    for inv_item in game.save_state.inventory.items.iter() {
+        if *target == inv_item.id {
+            let item = game.item_db.get(target);
+            println!("{}\n", item.description);
+            return;
         }
     }
 
