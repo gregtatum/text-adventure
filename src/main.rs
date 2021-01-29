@@ -226,7 +226,7 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
         "east" | "e" => Ok(ParsedCommand::Move(Direction::East)),
         "south" | "s" => Ok(ParsedCommand::Move(Direction::South)),
         "west" | "w" => Ok(ParsedCommand::Move(Direction::West)),
-        "inventory" | "inv" => Ok(ParsedCommand::Inventory),
+        "inventory" | "inv" | "i" | "items" => Ok(ParsedCommand::Inventory),
         "go" => match parse_command_target(&command, &mut words)? {
             Some(ref s) => match s.as_str() {
                 "north" => Ok(ParsedCommand::Move(Direction::North)),
