@@ -108,7 +108,7 @@ enum ParsedCommand {
     Talk(Option<String>),
     Message(String),
     Inventory,
-    Help,
+    Help(Option<String>),
     Move(Direction),
     Drop(String),
     Take(String),
@@ -238,7 +238,9 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
             None => Ok(ParsedCommand::Message("Where do you want to go?".into())),
         },
         "" => Ok(ParsedCommand::Message("".into())),
-        "help" => Ok(ParsedCommand::Help),
+        "help" | "h" => Ok(ParsedCommand::Help(parse_command_target(
+            &command, &mut words,
+        )?)),
         "debug" => Ok(ParsedCommand::Debug),
         "drop" => match parse_command_target(&command, &mut words)? {
             Some(target) => Ok(ParsedCommand::Drop(target)),
@@ -436,10 +438,12 @@ fn game_loop() -> GameLoopResponse {
             ParsedCommand::Look(None) => {
                 print_room_description(&game.room, &game.save_state, &game.room_info)
             }
-            ParsedCommand::Help => print_text_file("data/help.txt"),
-            //
-            // TODO - help target
-            //
+            ParsedCommand::Help(Some(target)) => {
+                help_target_command(&game, &target);
+            }
+            ParsedCommand::Help(None) => {
+                print_text_file("data/help.txt")
+            }
             ParsedCommand::Move(direction) => {
                 let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
 
@@ -622,4 +626,14 @@ fn look_command(game: &Game, target: &String) {
     }
 
     println!("You don't see a {}.\n", target);
+}
+
+fn help_target_command(game: &Game, target: &String) {
+    // Help something in the room through an action?
+    if let Some(action) = game.room.find_action(Verb::Help, &target, &game.level) {
+        println!("{}\n", action.value);
+        return;
+    }
+
+    println!("You can't help {}.\n", target);
 }
