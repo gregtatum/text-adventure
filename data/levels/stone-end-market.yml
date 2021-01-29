@@ -188,11 +188,28 @@ rooms:
           like clanging metal.
       - verb: Talk
         targets: [guards]
-        value: They do not respond, but they tighten their grips on their pikes.
+        value: |
+          They do not respond. They visibly tighten thee grips on their pikes, and
+          eye you up and down.
+      - verb: Open
+        targets: [doors, walls]
+        value: |
+          Those doors are way too big for you to open. Plus, there are guards blocking
+          you from the entrance.
     regions: [market]
-  - title: North East Corner of the Market
+  - title: Eastern Gate to the Stone End Market
     coord: [14, 4, 0]
-    description: TODO
+    description: |
+      You stand at the eastern gate of the Stone End Market. The gate is made of limestone
+      blocks that are somewhat eaten away. There is an arch at the top of two pillars.
+      At the top is a sigil of House Tiberious.
+    actions:
+      - verb: Look
+        targets: [arch, sigil, gate]
+        value: |
+          The Tiberious sigil appears to be build from glazed tile. It features two
+          lizard-like creates fighting each other. One of them is a vibrant green, while
+          the other is a vivid purple.
     regions: [market]
   - title: North West Corner of the Market
     coord: [11, 4, 0]
@@ -220,13 +237,43 @@ rooms:
         value: |
           The merchant is too flustered to respond.
       - verb: Help
+        targets: [merchant]
+        value: |
+          The merchant is too busy arguing with the guards. He does not notice you.
+      - verb: Help
         targets: [mule]
         value: |
-          He can't be helped
+          You walk over to the mule and begin trying to help it get untangled. The mule
+          begins to bray at you. You reach out your hand and it bites you. Ouch, that
+          hurt!
     regions: [market]
   - title: North East Corner of the Market
     coord: [13, 4, 0]
-    description: TODO
+        description: |
+      A gaggle of street urchins are sitting here. You can barely understand them, as
+      their slang is so thick. The merchants around you are eyeing them warily.
+    actions:
+    - verb: Look
+      target: [urchin, urchins, kids, kid]
+      value: |
+        The kids are short and scrawny. You don't know how old they are, but their faces
+        have seen much of the world. They smile at you. You aren't sure if they are being
+        friendly or have some other kind of agenda.
+    - verb: Talk
+      target: [urchin, urchins, kids, kid]
+      value: |
+        You pick a small urchin boy in the market to approach and ask him where to buy
+        the best apples.
+
+        He responds, "Oi yeh ken dat oi da'nt eat sech tings"
+
+        You feel a tug at your belt. You spin around just in time to see a small urchin
+        girl running way with her fist clenched. You double check your gold, and the
+        urchin has stolen 1 gold piece.
+      modify:
+        - verb: RemoveItem
+          item: gold
+          quantity: 1
     regions: [market]
   - title: South East Corner of the Market
     coord: [13, 5, 0]
@@ -243,9 +290,62 @@ rooms:
   # --------------------------------------------------------------------------------------
   # The Alley
   # --------------------------------------------------------------------------------------
-  - title: Alley Entrance
+  - title: Road to Eastern Stone End
     coord: [15, 4, 0]
-    description: TODO
+    id: guards-blocking
+    description: |
+      A troop of guards run into the road where you are standing. They command you to
+      hault and keep your hands where they can see them.
+    state:
+      death-if-move: |
+        You ignore the guards, and walk away. You feel yourself jerk forward. You look
+        down to see a strange flower burst from your shirt. You don't have time to
+        realize that it wasn't a plant, but a sword driven through your chest.
+
+        You are dead.
+    actions:
+      verb: Look
+      target: [guards, guard]
+      value: |
+        The guard up front, wearing a shining conical helmet and a full mustache steps
+        forward. "You there. Stay where you are."
+
+        He eyes you up and down.
+
+        "You are free to go, but you can't go into the eastern district. Turn around."
+
+        He puts his hand on his sword, but turns his back to you.
+      modify:
+        - verb: ChangeState
+          death-if-move:
+        - verb: ChangeRoom
+          id: guards-guarding
+  - title: Road to Eastern Stone End
+    coord: [15, 4, 0]
+    id: guards-guarding
+    description: |
+      A troop of guards stand blocking the road to the eastern district. To the west
+      is the Stone End Market. To the north is a small alleyway running along the walls
+      to the Stone End keep. It's not very well lit, and you can't see too far into it.
+
+      As you stand here catching your breath from the encounter with the guards, you can
+      hear what sound like shouts and clanging metal. The sound seems to be bouncing off
+      of the densely packed city walls and you can't tell where it's coming from.
+    actions:
+      - verb: Look
+        target: [guards, guard]
+        value: |
+          The guards are stopping and questioning other pedestrians. They are blocking
+          the road in to the eastern side of the city.
+      - verb: Talk
+        target: [guards, guard]
+        value: |
+          The guard with the mustache turns to you, his hand on the pommel of his sword.
+          "We've already had our chat, I suggest you move along if you don't want to
+          spend a night in the dungeons."
+      modify:
+        - verb: ChangeState
+          death-if-move:
   - title: Alley
     coord: [15, 3, 0]
     description: TODO
