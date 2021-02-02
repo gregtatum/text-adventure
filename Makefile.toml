@@ -1,0 +1,13 @@
+[tasks.yamllint]
+command = "yamllint"
+args = [
+  "./data",
+  # "--no-warnings",
+  "-d",
+  "{extends: relaxed, rules: {line-length: {max: 1000}, new-line-at-end-of-file: disable}}"
+]
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
