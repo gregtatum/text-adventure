@@ -274,6 +274,7 @@ pub enum Verb {
     Help,
     Look,
     Talk,
+    Custom,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
