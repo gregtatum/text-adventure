@@ -69,10 +69,17 @@ fn parse_map(level: &Level) -> HashMap<Coord, RoomMapInfo> {
         let west_coord = coord.apply(&Direction::West);
 
         if let None = level.get_room(&coord) {
-            eprintln!("No room info was found in the map. Add the following coordinate:\n");
-            eprintln!("  - coord: [{}, {}, {}]", coord.x, coord.y, coord.z);
-            eprintln!("    description: TODO\n",);
+            eprintln!("Empty rooms were found in the map. Add the following:\n");
 
+            for (coord, _) in coord_map.iter() {
+                if let None = level.get_room(&coord) {
+                    eprintln!("  - title: TODO",);
+                    eprintln!("    coord: [{}, {}, {}]", coord.x, coord.y, coord.z);
+                    eprintln!("    description: TODO",);
+                }
+            }
+
+            eprintln!("");
             print_map_issue(&level, &coord);
             process::exit(1);
         };
@@ -441,9 +448,7 @@ fn game_loop() -> GameLoopResponse {
             ParsedCommand::Help(Some(target)) => {
                 help_target_command(&game, &target);
             }
-            ParsedCommand::Help(None) => {
-                print_text_file("data/help.txt")
-            }
+            ParsedCommand::Help(None) => print_text_file("data/help.txt"),
             ParsedCommand::Move(direction) => {
                 let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
 

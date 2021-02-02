@@ -14,11 +14,10 @@ where
     match serde_yaml::from_str(&yml_string) {
         Ok(t) => t,
         Err(err) => {
-            eprintln!("========================================================");
-            eprintln!("Unable to deserialize: {:?}", path);
-
+            eprintln!("======================================================================");
+            eprintln!("Unable to deserialize, {}", path.as_path().display());
+            eprintln!("======================================================================");
             if let Some(location) = err.location() {
-                eprintln!("========================================================");
                 let backscroll = 10;
                 let backscroll_index = location.line() - backscroll.min(location.line());
                 for (line_index, line) in yml_string.lines().enumerate() {
@@ -26,13 +25,19 @@ where
                         eprintln!("{}", line);
                     }
                     if line_index == location.line() - 1 {
-                        for _ in 0..location.column() {
+                        for _ in 0..location.column() - 1 {
                             print!(" ");
                         }
                         println!("^ {}", err);
                         break;
                     }
                 }
+                eprintln!(
+                    "\n{}:{}:{}",
+                    path.as_path().display(),
+                    location.line(),
+                    location.column()
+                );
             }
             process::exit(1);
         }
