@@ -2,17 +2,27 @@ maps:
   -
     # 0         1         2
     # 0123456789012345678901234567
-    - --------------###----------- 0
-    - --------------#.#----------- 1
-    - --------------#.#----------- 2
-    - ----------#####.#----------- 3
-    - ----------#.....#----------- 4
-    - ----------#...##------------ 5
-    - ----------##.##------------- 6
-    - -----------#.#-------------- 7
-    - -----------#.#-------------- 8
-    - -----------###-------------- 9
-entry: [12, 8, 0]
+    - ----------------------------  0
+    - ----------------------------  1
+    - ----------------------------  2
+    - ----------------------------  3
+    - ----------------------------  4
+    - ----------------------------  5
+    - ----------------------------  6
+    - --------------###-----------  7
+    - --------------#.#-----------  8
+    - --------------#.#-----------  9
+    - --------------#.#----------- 10 # [15, 10, 0] Raven Descends
+    - --------------#.#----------- 11 # [15, 11, 0] Dark Alleyway Gets Darker
+    - --------------#.#----------- 12 # [15, 12, 0] Dark Alleyway Continues
+    - ----------#####.#----------- 13 # [15, 13, 0] Dark Alleyway
+    - ----------#.....#----------- 14 # [15, 14, 0] Road to Eastern Stone End
+    - ----------#...##------------ 15
+    - ----------##.##------------- 16
+    - -----------#.#-------------- 17
+    - -----------#.#-------------- 18
+    - -----------###-------------- 19
+entry: [12, 18, 0]
 npcs:
   grill-merchant:
     name: Grill Merchant
@@ -44,8 +54,8 @@ npcs:
       You see him happily pat some kind bulge in his pocket that from the smell of him,
       you assume is a small bottle of apple jack.
     items:
-    - id: apple
-      cost: 1
+      - id: apple
+        cost: 1
 regions:
   market:
     actions:
@@ -72,12 +82,29 @@ regions:
       #     You attempt to flee, but you lose consciousness as the blood leaks from your
       #     side.
       #   outcome: Death
+  alley:
+    actions:
+      - verb: Look
+        targets: [alley, alleyway]
+        value:
+          You are in a dark alleyway. It runs north to south tightly hugging the wall of Stone End
+          Keep. It is damp and there is an odor that reminds you of an old basement. The stones road
+          is slippery.
+      - verb: Look
+        targets: [wall]
+        value:
+          The wall is steep and smooth. You don't think you could climb it.
+      - verb: Custom
+        alias: climb
+        targets: [wall]
+        value:
+          You can't climb the wall, it's too smooth.
 rooms:
   # --------------------------------------------------------------------------------------
   # The Docks
   # --------------------------------------------------------------------------------------
   - title: Stone End Docks
-    coord: [12, 8, 0]
+    coord: [12, 18, 0]
     description: |
       You are standing at the Stone End docks. To the south, a city guard stands in
       a guard post, blocking the entrance to the docks. You can see "The Torbay" anchored
@@ -100,7 +127,7 @@ rooms:
             The guard glares at you and says, "Welcome to Stone End, now scram!"
 
   - title: Stone End Market Road
-    coord: [12, 7, 0]
+    coord: [12, 17, 0]
     description: |
       The road you are on is surrounded by densely packed houses. A sailor from the ship
       is chatting up a woman in a worn, but colorful dress.
@@ -133,7 +160,7 @@ rooms:
             hem. There is lace. So much lace... well, spilling out of everywhere.
 
   - title: Stone End Market Gate
-    coord: [12, 6, 0]
+    coord: [12, 16, 0]
     description: |
       You stand in front of a gate. Two guards stand there, pikes in hand. Over the gate
       hangs a festive hand painted banner.
@@ -151,7 +178,7 @@ rooms:
   # The Market
   # --------------------------------------------------------------------------------------
   - title: Stone End Market
-    coord: [12, 5, 0]
+    coord: [12, 15, 0]
     description: |
       You step into a bustling market. Merchants are shouting into the crowd, hawking
       their wares. You see small urchin children running around. You put your hand
@@ -169,7 +196,7 @@ rooms:
         pickup: It turns out it was a gold piece. Today is your lucky day.
     regions: [market]
   - title: The Door to the Stone End Keep
-    coord: [12, 4, 0]
+    coord: [12, 14, 0]
     description: |
       Stone steps lead up to two large sturdy doors. These are attached to the thick walls
       of Stone End keep. Guards block the gate, standing at attention, pikes in hand.
@@ -191,14 +218,15 @@ rooms:
         value: |
           They do not respond. They visibly tighten thee grips on their pikes, and
           eye you up and down.
-      - verb: Open
+      - verb: Custom
+        alias: Open
         targets: [doors, walls]
         value: |
           Those doors are way too big for you to open. Plus, there are guards blocking
           you from the entrance.
     regions: [market]
   - title: Eastern Gate to the Stone End Market
-    coord: [14, 4, 0]
+    coord: [14, 14, 0]
     description: |
       You stand at the eastern gate of the Stone End Market. The gate is made of limestone
       blocks that are somewhat eaten away. There is an arch at the top of two pillars.
@@ -212,7 +240,7 @@ rooms:
           the other is a vivid purple.
     regions: [market]
   - title: North West Corner of the Market
-    coord: [11, 4, 0]
+    coord: [11, 14, 0]
     description: |
       Two guards are yelling at a very flustered looking merchant. There is an overturned
       cart and a tangled up mule blocking the gate out to the rest of the town. Vegetables
@@ -248,39 +276,39 @@ rooms:
           hurt!
     regions: [market]
   - title: North East Corner of the Market
-    coord: [13, 4, 0]
-        description: |
+    coord: [13, 14, 0]
+    description: |
       A gaggle of street urchins are sitting here. You can barely understand them, as
       their slang is so thick. The merchants around you are eyeing them warily.
     actions:
-    - verb: Look
-      target: [urchin, urchins, kids, kid]
-      value: |
-        The kids are short and scrawny. You don't know how old they are, but their faces
-        have seen much of the world. They smile at you. You aren't sure if they are being
-        friendly or have some other kind of agenda.
-    - verb: Talk
-      target: [urchin, urchins, kids, kid]
-      value: |
-        You pick a small urchin boy in the market to approach and ask him where to buy
-        the best apples.
+      - verb: Look
+        targets: [urchin, urchins, kids, kid]
+        value: |
+          The kids are short and scrawny. You don't know how old they are, but their faces
+          have seen much of the world. They smile at you. You aren't sure if they are being
+          friendly or have some other kind of agenda.
+      - verb: Talk
+        targets: [urchin, urchins, kids, kid]
+        value: |
+          You pick a small urchin boy in the market to approach and ask him where to buy
+          the best apples.
 
-        He responds, "Oi yeh ken dat oi da'nt eat sech tings"
+          He responds, "Oi yeh ken dat oi da'nt eat sech tings"
 
-        You feel a tug at your belt. You spin around just in time to see a small urchin
-        girl running way with her fist clenched. You double check your gold, and the
-        urchin has stolen 1 gold piece.
-      modify:
-        - verb: RemoveItem
-          item: gold
-          quantity: 1
+          You feel a tug at your belt. You spin around just in time to see a small urchin
+          girl running way with her fist clenched. You double check your gold, and the
+          urchin has stolen 1 gold piece.
+        modify:
+          - verb: RemoveItem
+            item: gold
+            quantity: 1
     regions: [market]
   - title: South East Corner of the Market
-    coord: [13, 5, 0]
+    coord: [13, 15, 0]
     description: TODO
     regions: [market]
   - title: South West Corner of the Market
-    coord: [11, 5, 0]
+    coord: [11, 15, 0]
     description: |
       Farmers have set up stalls selling the bounties of their harvest. In front of you
       is an apple farmer. She is looking at you with sparkling eyes, trying to get
@@ -291,7 +319,7 @@ rooms:
   # The Alley
   # --------------------------------------------------------------------------------------
   - title: Road to Eastern Stone End
-    coord: [15, 4, 0]
+    coord: [15, 14, 0]
     id: guards-blocking
     description: |
       A troop of guards run into the road where you are standing. They command you to
@@ -304,24 +332,24 @@ rooms:
 
         You are dead.
     actions:
-      verb: Look
-      target: [guards, guard]
-      value: |
-        The guard up front, wearing a shining conical helmet and a full mustache steps
-        forward. "You there. Stay where you are."
+      - verb: Look
+        targets: [guards, guard]
+        value: |
+          The guard up front, wearing a shining conical helmet and a full mustache steps
+          forward. "You there. Stay where you are."
 
-        He eyes you up and down.
+          He eyes you up and down.
 
-        "You are free to go, but you can't go into the eastern district. Turn around."
+          "You are free to go, but you can't go into the eastern district. Turn around."
 
-        He puts his hand on his sword, but turns his back to you.
-      modify:
-        - verb: ChangeState
-          death-if-move:
-        - verb: ChangeRoom
-          id: guards-guarding
+          He puts his hand on his sword, but turns his back to you.
+        modify:
+          - verb: ChangeState
+            death-if-move:
+          - verb: ChangeRoom
+            id: guards-guarding
   - title: Road to Eastern Stone End
-    coord: [15, 4, 0]
+    coord: [15, 14, 0]
     id: guards-guarding
     description: |
       A troop of guards stand blocking the road to the eastern district. To the west
@@ -333,25 +361,78 @@ rooms:
       of the densely packed city walls and you can't tell where it's coming from.
     actions:
       - verb: Look
-        target: [guards, guard]
+        targets: [guards, guard]
         value: |
           The guards are stopping and questioning other pedestrians. They are blocking
           the road in to the eastern side of the city.
       - verb: Talk
-        target: [guards, guard]
+        targets: [guards, guard]
         value: |
           The guard with the mustache turns to you, his hand on the pommel of his sword.
           "We've already had our chat, I suggest you move along if you don't want to
           spend a night in the dungeons."
-      modify:
-        - verb: ChangeState
-          death-if-move:
-  - title: Alley
-    coord: [15, 3, 0]
+        modify:
+          - verb: ChangeState
+            death-if-move:
+  - title: Dark Alleyway
+    coord: [15, 13, 0]
+    description: |
+      You step into a dark alleyway. This is fine..
+    area:
+  - title: Dark Alleyway Continues
+    coord: [15, 12, 0]
+    description: |
+      The din of the market and streets fades away as you make your way inside. You begin to
+      make out the sounds of shouting coming from above.
+  - title: Dark Alleyway Gets Darker
+    coord: [15, 11, 0]
+    description: |
+      Yes, that is definitely the sound of swords. You hear a faint sound that you are pretty
+      sure is a scream.
+  - title: Dark Alleyway
+    coord: [15, 10, 0]
+    id: dark-alleyway-rope
+    description: |
+      A rope tumbles from the walls directly in front of you. It swings for a moment, then stands
+      still. You can still hear the shouts and clanging coming from above.
+    actions:
+      - verb: Look
+        targets: [rope]
+        value: |
+          You move closer to examine the rope. As you do it begins to shake. A dark figure descends
+          the rope. The rope swings back and forth, but the figure wrapped in a green cape appears
+          to have little trouble navigating the swinging rope as they descend.
+
+          The figure hops to the ground in front of you catching their breath. Their face is hidden
+          by a hood.
+        modify:
+          - verb: ChangeRoom
+            id: dark-alleyway-raven
+  - title: Dark Alleyway
+    coord: [15, 10, 0]
+    description: |
+      A rope tumbles from the walls directly in front of you. It swings for a moment, then stands
+      still. You can still hear the shouts and clanging coming from above.
+    actions:
+      - verb: Look
+        targets: [rope]
+        value: |
+          You move closer to examine the rope. As you do it begins to shake. A dark figure descends
+          the rope. The rope swings back and forth, but the figure wrapped in a green cape appears
+          to have little trouble navigating the swinging rope as they descend.
+
+          The figure hops to the ground in front of you catching their breath. Their face is hidden
+          by a hood.
+        modify:
+          - verb: ChangeRoom
+            id: dark-alleyway-raven
+  - title: Dark Alleyway
+    coord: [15, 10, 0]
+    id: dark-alleyway-rope
     description: TODO
-  - title: Dark Alley
-    coord: [15, 2, 0]
+  - title: TODO
+    coord: [15, 8, 0]
     description: TODO
-  - title: River Entrance
-    coord: [15, 1, 0]
+  - title: TODO
+    coord: [15, 9, 0]
     description: TODO
