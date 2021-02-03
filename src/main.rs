@@ -1,4 +1,3 @@
-mod commands;
 mod level;
 mod print;
 mod utils;
@@ -122,6 +121,7 @@ enum ParsedCommand {
     Quit,
     Debug,
     Restart,
+    Custom(String, Option<String>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -264,10 +264,10 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
         },
         "quit" | "q" | "exit" => Ok(ParsedCommand::Quit),
         "restart" => Ok(ParsedCommand::Restart),
-        _ => Ok(ParsedCommand::Message(format!(
-            "You don't know how to {:?}. Type \"help\" for help.",
-            command
-        ))),
+        _ => Ok(ParsedCommand::Custom(
+            command.to_string(),
+            parse_command_target(&command, &mut words)?,
+        )),
     }
 }
 
@@ -553,6 +553,9 @@ fn game_loop() -> GameLoopResponse {
                 } else {
                     println!("Let's keep playing!");
                 }
+            }
+            ParsedCommand::Custom(command, target) => {
+                println!("You don't know how to {:?}. Type \"help\" for help.", command)
             }
         }
     }
