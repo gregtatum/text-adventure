@@ -378,7 +378,7 @@ rooms:
     coord: [15, 13, 0]
     description: |
       You step into a dark alleyway. This is fine..
-    area:
+    regions: [alley]
   - title: Dark Alleyway Continues
     coord: [15, 12, 0]
     description: |
