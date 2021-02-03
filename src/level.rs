@@ -84,13 +84,22 @@ impl Room {
         verb: Verb,
         target: &String,
         level: &'a Level,
+        alias: Option<&String>,
     ) -> Option<&'a Action> {
         // Check this room for the action.
         if let Some(ref actions) = self.actions {
-            if let Some(action) = actions
-                .iter()
-                .find(|action| action.verb == verb && action.targets.contains(target))
-            {
+            if let Some(action) = actions.iter().find(|action| {
+                if action.verb == verb && action.targets.contains(target) {
+                    if let Some(alias) = alias {
+                        if let Some(ref action_alias) = action.alias {
+                            return *action_alias == *alias;
+                        }
+                        return false;
+                    }
+                    return true;
+                }
+                false
+            }) {
                 return Some(action);
             };
         }
@@ -244,6 +253,7 @@ pub struct Region {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Action {
     pub verb: Verb,
+    pub alias: Option<String>,
     pub targets: Vec<String>,
     pub value: String,
 }

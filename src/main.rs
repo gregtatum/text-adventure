@@ -517,7 +517,10 @@ fn game_loop() -> GameLoopResponse {
                 return GameLoopResponse::Quit;
             }
             ParsedCommand::Talk(Some(target)) => {
-                match game.room.find_action(Verb::Talk, &target, &game.level) {
+                match game
+                    .room
+                    .find_action(Verb::Talk, &target, &game.level, None)
+                {
                     Some(action) => {
                         println!("{}", action.value);
                     }
@@ -554,9 +557,24 @@ fn game_loop() -> GameLoopResponse {
                     println!("Let's keep playing!");
                 }
             }
-            ParsedCommand::Custom(command, target) => {
-                println!("You don't know how to {:?}. Type \"help\" for help.", command)
-            }
+            ParsedCommand::Custom(command, target) => match target {
+                Some(target) => {
+                    match game
+                        .room
+                        .find_action(Verb::Custom, &target, &game.level, Some(&command))
+                    {
+                        Some(action) => println!("{}", action.value),
+                        None => println!(
+                            "You don't know how to {:?}. Type \"help\" for help.",
+                            command
+                        ),
+                    }
+                }
+                None => println!(
+                    "You don't know how to {:?}. Type \"help\" for help.",
+                    command
+                ),
+            },
         }
     }
 }
@@ -598,7 +616,10 @@ fn prompt_yes_no(message: &str) -> bool {
 
 fn look_command(game: &Game, target: &String) {
     // Look at something in the room through an action?
-    if let Some(action) = game.room.find_action(Verb::Look, &target, &game.level) {
+    if let Some(action) = game
+        .room
+        .find_action(Verb::Look, &target, &game.level, None)
+    {
         println!("{}\n", action.value);
         return;
     }
@@ -638,7 +659,10 @@ fn look_command(game: &Game, target: &String) {
 
 fn help_target_command(game: &Game, target: &String) {
     // Help something in the room through an action?
-    if let Some(action) = game.room.find_action(Verb::Help, &target, &game.level) {
+    if let Some(action) = game
+        .room
+        .find_action(Verb::Help, &target, &game.level, None)
+    {
         println!("{}\n", action.value);
         return;
     }
