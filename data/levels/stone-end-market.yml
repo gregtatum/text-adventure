@@ -219,8 +219,8 @@ rooms:
           They do not respond. They visibly tighten thee grips on their pikes, and
           eye you up and down.
       - verb: Custom
-        alias: Open
-        targets: [doors, walls]
+        alias: open
+        targets: [door, doors, wall, walls]
         value: |
           Those doors are way too big for you to open. Plus, there are guards blocking
           you from the entrance.
