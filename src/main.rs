@@ -6,13 +6,48 @@ use crate::utils::parse_yml;
 use level::{Coord, Direction, InventoryItem, ItemDatabase, Level, Room, RoomItem, Verb};
 use print::{print_map_issue, print_room_description, print_text_file};
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::{
-    collections::HashMap, iter::Peekable, path::PathBuf, process, rc::Rc, str::SplitWhitespace,
+    cell::{RefCell, RefMut},
+    collections::HashMap,
+    fs,
+    io::{Stdout, Write},
+    iter::Peekable,
+    path::PathBuf,
+    process,
+    rc::Rc,
+    str::SplitWhitespace,
 };
 
-fn get_prompt() -> String {
-    rprompt::prompt_reply_stdout("» ").unwrap().to_lowercase()
+pub trait Environment: Write {
+    fn get_prompt(&mut self) -> String;
+}
+
+struct Terminal {
+    stdout: Stdout,
+}
+
+impl Terminal {
+    fn new() -> Terminal {
+        Terminal {
+            stdout: std::io::stdout(),
+        }
+    }
+}
+
+impl Environment for Terminal {
+    fn get_prompt(&mut self) -> String {
+        rprompt::prompt_reply_stdout("» ").unwrap().to_lowercase()
+    }
+}
+
+impl Write for Terminal {
+    fn write(&mut self, buffer: &[u8]) -> Result<usize, std::io::Error> {
+        self.stdout.write(buffer)
+    }
+
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        self.stdout.flush()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -271,17 +306,18 @@ fn parse_command(input: String) -> Result<ParsedCommand, String> {
     }
 }
 
-struct Game<'a> {
+pub struct Game<'a, T: Environment> {
     level: Level,
     room: Rc<Room>,
     item_db: &'a ItemDatabase,
     save_state: SaveState,
     lookup_room_info: HashMap<Coord, RoomMapInfo>,
     room_info: RoomMapInfo,
+    environment: RefCell<T>,
 }
 
-impl<'a> Game<'a> {
-    fn new(item_db: &ItemDatabase) -> Game {
+impl<'a, T: Environment> Game<'a, T> {
+    fn new(item_db: &'a ItemDatabase, environment: T) -> Game<'a, T> {
         let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
         let save_state = {
             let path = PathBuf::from("data/save-state.yml");
@@ -306,7 +342,12 @@ impl<'a> Game<'a> {
             save_state,
             lookup_room_info,
             room_info,
+            environment: RefCell::new(environment),
         }
+    }
+
+    fn output(&self) -> RefMut<T> {
+        self.environment.borrow_mut()
     }
 }
 
@@ -410,8 +451,9 @@ enum GameLoopResponse {
 }
 
 fn main() {
+    let item_db = ItemDatabase::new();
     loop {
-        match game_loop() {
+        match game_loop(&item_db, Terminal::new()) {
             GameLoopResponse::Restart => {
                 let save_file = PathBuf::from("data/save-state.yml");
                 if save_file.exists() {
@@ -427,28 +469,25 @@ fn main() {
     }
 }
 
-fn game_loop() -> GameLoopResponse {
-    let item_db = ItemDatabase::new();
-    let mut game = Game::new(&item_db);
+fn game_loop<'a, T: Environment>(item_db: &'a ItemDatabase, environment: T) -> GameLoopResponse {
+    let mut game = Game::new(&item_db, environment);
 
-    print_text_file("data/intro.txt");
-    print_room_description(&game.room, &game.save_state, &game.room_info);
+    print_text_file(&game, "data/intro.txt");
+    print_room_description(&game);
 
     loop {
-        let string = get_prompt();
+        let string = game.environment.borrow_mut().get_prompt();
         // Add a newline after the prompt.
         println!("");
         match parse_command(string).unwrap_or_else(|message| ParsedCommand::Message(message)) {
             ParsedCommand::Look(Some(target)) => {
-                look_command(&game, &target);
+                look_command(&mut game, &target);
             }
-            ParsedCommand::Look(None) => {
-                print_room_description(&game.room, &game.save_state, &game.room_info)
-            }
+            ParsedCommand::Look(None) => print_room_description(&game),
             ParsedCommand::Help(Some(target)) => {
                 help_target_command(&game, &target);
             }
-            ParsedCommand::Help(None) => print_text_file("data/help.txt"),
+            ParsedCommand::Help(None) => print_text_file(&game, "data/help.txt"),
             ParsedCommand::Move(direction) => {
                 let next_coord: Option<Coord> = (game.room_info.from_direction(&direction)).clone();
 
@@ -463,7 +502,7 @@ fn game_loop() -> GameLoopResponse {
                             .get_room(&next_coord)
                             .expect("Expected to find a room.")
                             .clone();
-                        print_room_description(&game.room, &game.save_state, &game.room_info);
+                        print_room_description(&game);
                     }
                     None => {
                         eprintln!("You cannot move {}.", direction.lowercase_string());
@@ -551,7 +590,10 @@ fn game_loop() -> GameLoopResponse {
             }
             ParsedCommand::Message(message) => println!("{}", message),
             ParsedCommand::Restart => {
-                if prompt_yes_no("Are you sure you want to erase your game and restart?") {
+                if prompt_yes_no(
+                    &mut game,
+                    "Are you sure you want to erase your game and restart?",
+                ) {
                     return GameLoopResponse::Restart;
                 } else {
                     println!("Let's keep playing!");
@@ -596,10 +638,10 @@ fn print_box(text: &str) {
     print!("╝\n");
 }
 
-fn prompt_yes_no(message: &str) -> bool {
+fn prompt_yes_no<T: Environment>(game: &mut Game<T>, message: &str) -> bool {
     loop {
         println!("{} (yes, no)", message);
-        let response = get_prompt();
+        let response = game.environment.borrow_mut().get_prompt();
         match response.as_str() {
             "yes" | "y" => {
                 return true;
@@ -614,13 +656,13 @@ fn prompt_yes_no(message: &str) -> bool {
     }
 }
 
-fn look_command(game: &Game, target: &String) {
+fn look_command<T: Environment>(game: &Game<T>, target: &String) {
     // Look at something in the room through an action?
     if let Some(action) = game
         .room
         .find_action(Verb::Look, &target, &game.level, None)
     {
-        println!("{}\n", action.value);
+        writeln!(game.output(), "{}\n", action.value).unwrap();
         return;
     }
 
@@ -657,7 +699,7 @@ fn look_command(game: &Game, target: &String) {
     println!("You don't see a {}.\n", target);
 }
 
-fn help_target_command(game: &Game, target: &String) {
+fn help_target_command<T: Environment>(game: &Game<T>, target: &String) {
     // Help something in the room through an action?
     if let Some(action) = game
         .room
@@ -668,4 +710,85 @@ fn help_target_command(game: &Game, target: &String) {
     }
 
     println!("You can't help {}.\n", target);
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    struct CommandRunner {
+        commands: Vec<&'static str>,
+        output: Vec<u8>,
+    }
+
+    impl CommandRunner {
+        fn new(mut commands: Vec<&'static str>) -> CommandRunner {
+            commands.push("quit");
+            commands.reverse();
+            CommandRunner {
+                commands,
+                output: Vec::new(),
+            }
+        }
+
+        fn get_last_output<'a>(self) -> Vec<String> {
+            std::str::from_utf8(&self.output)
+                .unwrap()
+                .lines()
+                .map(|s| s.to_string())
+                .collect()
+        }
+    }
+
+    impl Write for CommandRunner {
+        fn write(&mut self, buffer: &[u8]) -> Result<usize, std::io::Error> {
+            for value in buffer.iter() {
+                self.output.push(*value);
+            }
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> Result<(), std::io::Error> {
+            Ok(())
+        }
+    }
+
+    impl Environment for &mut CommandRunner {
+        fn get_prompt(&mut self) -> String {
+            if self.commands.len() > 1 {
+                // Retain the last output.
+                self.output.clear();
+            }
+            self.commands
+                .pop()
+                .expect("Expected to find a string in the CommandRunner.")
+                .to_string()
+        }
+    }
+
+    fn run_game(commands: Vec<&'static str>) -> Vec<String> {
+        let item_db = ItemDatabase::new();
+        let mut command_runner = CommandRunner::new(commands);
+
+        match game_loop(&item_db, &mut command_runner) {
+            GameLoopResponse::Quit => {}
+            GameLoopResponse::Restart => panic!("Unexpected restart."),
+        };
+
+        command_runner.get_last_output()
+    }
+
+    #[test]
+    fn test_look() {
+        insta::assert_yaml_snapshot!(run_game(vec!["look"]), @r###"
+        ---
+        - The Door to the Stone End Keep
+        - ""
+        - "    Stone steps lead up to two large sturdy doors. These are attached to the thick walls "
+        - "    of Stone End keep. Guards block the gate, standing at attention, pikes in hand. "
+        - ""
+        - ""
+        - "Exits: _ e s w"
+        "###);
+    }
 }

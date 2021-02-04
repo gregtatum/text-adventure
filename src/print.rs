@@ -1,13 +1,13 @@
 use crate::{
-    level::{Coord, Level, Room},
-    RoomMapInfo, SaveState,
+    level::{Coord, Level},
+    Environment, Game, RoomMapInfo,
 };
 use std::{fs, path::PathBuf};
 
 const LINE_WIDTH: usize = 90;
 const INDENT: usize = 4;
 
-pub fn print_exits(room_map_info: &RoomMapInfo) {
+pub fn print_exits<T: Environment>(game: &Game<T>, room_map_info: &RoomMapInfo) {
     let mut exits = String::from("Exits:");
 
     let mut push_dir = |option, string| match option {
@@ -19,17 +19,24 @@ pub fn print_exits(room_map_info: &RoomMapInfo) {
     push_dir(room_map_info.east, " e");
     push_dir(room_map_info.south, " s");
     push_dir(room_map_info.west, " w");
-    println!("{}", exits);
+    writeln!(game.output(), "{}", exits).unwrap();
 }
 
-pub fn print_text_file(path_str: &str) {
+pub fn print_text_file<T: Environment>(game: &Game<T>, path_str: &str) {
     let path = PathBuf::from(path_str);
     let text = fs::read_to_string(path).expect("Could not find the intro.txt");
-    println!("{}", text);
+    writeln!(game.output(), "{}", text).unwrap();
 }
 
-pub fn print_room_description(room: &Room, save_state: &SaveState, room_map_info: &RoomMapInfo) {
-    println!("{}\n", room.title);
+pub fn print_room_description<T: Environment>(game: &Game<T>) {
+    let Game {
+        ref room,
+        ref save_state,
+        ref room_info,
+        ..
+    } = game;
+
+    writeln!(game.output(), "{}\n", room.title).unwrap();
 
     let mut formatted_description = room.cached_formatted_description.borrow_mut();
 
@@ -57,7 +64,7 @@ pub fn print_room_description(room: &Room, save_state: &SaveState, room_map_info
         }
         *formatted_description = formatted_lines.join("");
     }
-    println!("{}", formatted_description);
+    writeln!(game.output(), "{}", formatted_description).unwrap();
 
     for name in save_state
         .room_inventories
@@ -65,19 +72,19 @@ pub fn print_room_description(room: &Room, save_state: &SaveState, room_map_info
         .expect("room inventory")
         .item_names_iter()
     {
-        println!("{}", name);
+        writeln!(game.output(), "{}", name).unwrap();
     }
 
     if !room.items.is_empty() {
-        println!();
+        writeln!(game.output()).unwrap();
     }
 
     if save_state.debug {
         let Coord { x, y, z } = save_state.coord;
-        println!("Coord: [{}, {}, {}]", x, y, z);
+        writeln!(game.output(), "Coord: [{}, {}, {}]", x, y, z).unwrap();
     }
 
-    print_exits(room_map_info);
+    print_exits(game, room_info);
 }
 
 pub fn print_map_issue(level: &Level, coord: &Coord) {
@@ -90,12 +97,12 @@ pub fn print_map_issue(level: &Level, coord: &Coord) {
     };
 
     for (y, row) in map.iter().enumerate() {
-        println!("{}", row);
+        eprintln!("{}", row);
         if y == coord.y {
             let mut indent = String::from(" ");
             indent = indent.repeat(coord.x);
             indent.push('^');
-            println!("{}", indent);
+            eprintln!("{}", indent);
             break;
         }
     }
