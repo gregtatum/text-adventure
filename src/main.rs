@@ -757,6 +757,8 @@ macro_rules! outputln {
 
 #[cfg(test)]
 mod test {
+    use insta::assert_yaml_snapshot;
+
     use super::*;
 
     struct CommandRunner {
@@ -779,6 +781,7 @@ mod test {
                 .unwrap()
                 .lines()
                 .map(|s| s.to_string())
+                .filter(|s| !s.is_empty())
                 .collect()
         }
     }
@@ -824,46 +827,110 @@ mod test {
 
     #[test]
     fn test_intro() {
-        insta::assert_yaml_snapshot!(run_game(vec![]), @r###"
+        assert_yaml_snapshot!(run_game(vec![]), @r###"
         ---
         - ╔═══════╗
         - ║ Intro ║
         - ╚═══════╝
-        - ""
         - Stone End Docks
-        - ""
         - "    You are standing at the Stone End Docks. "
-        - ""
-        - ""
         - "Exits: n _ _ _"
         "###);
     }
 
     #[test]
     fn test_look() {
-        insta::assert_yaml_snapshot!(run_game(vec!["look"]), @r###"
+        assert_yaml_snapshot!(run_game(vec!["look"]), @r###"
         ---
         - Stone End Docks
-        - ""
         - "    You are standing at the Stone End Docks. "
-        - ""
-        - ""
         - "Exits: n _ _ _"
         "###);
     }
 
     #[test]
     fn test_inventory() {
-        insta::assert_yaml_snapshot!(run_game(vec!["inventory"]), @r###"
+        assert_yaml_snapshot!(run_game(vec!["inventory"]), @r###"
         ---
-        - ""
         - ╔═════════════════╗
         - "║ Your inventory: ║"
         - ╚═════════════════╝
         - "  ‣ sword"
         - "  ‣ gold (17)"
-        - ""
-        - ""
+        "###);
+    }
+
+    #[test]
+    fn test_look_inventory() {
+        assert_yaml_snapshot!(run_game(vec!["look sword"]), @r###"
+        ---
+        - "A fairly basic looking sword, with some signs of wear. It is well oiled and"
+        - "sharpened, ready to use."
+        "###);
+    }
+
+    #[test]
+    fn test_look_room_verb() {
+        assert_yaml_snapshot!(run_game(vec!["look post"]), @r###"
+        ---
+        - "The guard post is well worn. It looks old, but sturdy."
+        "###);
+    }
+
+    #[test]
+    fn test_look_unknown() {
+        assert_yaml_snapshot!(run_game(vec!["look unknown"]), @r###"
+        ---
+        - "You don't see a unknown."
+        "###);
+    }
+
+    #[test]
+    fn test_look_region() {
+        assert_yaml_snapshot!(run_game(vec!["look keep"]), @r###"
+        ---
+        - Stone End Keep is a towering structure that dominates the market. It is guarded and shut. Over the din of the market you can barely hear the sounds of shouting.
+        "###);
+    }
+
+    #[test]
+    fn test_talk() {
+        assert_yaml_snapshot!(run_game(vec!["talk guard"]), @r###"
+        ---
+        - "The guard glares at you and says, \"Welcome to Stone End, now scram!\""
+        "###);
+    }
+
+    #[test]
+    fn test_drop_item() {
+        assert_yaml_snapshot!(run_game(vec!["inv"]), @r###"
+        ---
+        - ╔═════════════════╗
+        - "║ Your inventory: ║"
+        - ╚═════════════════╝
+        - "  ‣ sword"
+        - "  ‣ gold (17)"
+        "###);
+
+        assert_yaml_snapshot!(run_game(vec!["drop sword"]), @r###"
+        ---
+        - You dropped the sword.
+        "###);
+
+        assert_yaml_snapshot!(run_game(vec!["drop sword", "look"]), @r###"
+        ---
+        - Stone End Docks
+        - "    You are standing at the Stone End Docks. "
+        - sword
+        - "Exits: n _ _ _"
+        "###);
+
+        assert_yaml_snapshot!(run_game(vec!["drop sword", "inv"]), @r###"
+        ---
+        - ╔═════════════════╗
+        - "║ Your inventory: ║"
+        - ╚═════════════════╝
+        - "  ‣ gold (17)"
         "###);
     }
 }

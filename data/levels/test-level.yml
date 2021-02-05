@@ -70,6 +70,7 @@ rooms:
         targets: [guard]
         value: |
             The guard glares at you and says, "Welcome to Stone End, now scram!"
+    regions: [market]
 
   - title: Stone End Market Road
     coord: [2, 1, 0]
