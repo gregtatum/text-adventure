@@ -368,6 +368,12 @@ pub struct SaveState {
 }
 
 impl SaveState {
+    fn room_inventory(&self) -> &RoomInventory {
+        self.room_inventories
+            .get(&self.coord)
+            .expect("Could not find a room inventory.")
+    }
+
     fn room_inventory_mut(&mut self) -> &mut RoomInventory {
         self.room_inventories
             .get_mut(&self.coord)
@@ -725,6 +731,15 @@ fn look_command<T: Environment>(game: &Game<T>, target: &String) {
         }
     }
 
+    // Look at a room's items?
+    for (ref room_item, _) in game.save_state.room_inventory().inventory.iter() {
+        if *target == room_item.id {
+            let item = game.item_db.get(target);
+            outputln!(game, "{}\n", item.description);
+            return;
+        }
+    }
+
     outputln!(game, "You don't see a {}.\n", target);
 }
 
@@ -931,6 +946,12 @@ mod test {
         - "║ Your inventory: ║"
         - ╚═════════════════╝
         - "  ‣ gold (17)"
+        "###);
+
+        assert_yaml_snapshot!(run_game(vec!["drop sword", "look sword"]), @r###"
+        ---
+        - "A fairly basic looking sword, with some signs of wear. It is well oiled and"
+        - "sharpened, ready to use."
         "###);
     }
 }
