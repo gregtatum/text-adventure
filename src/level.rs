@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Level {
     pub maps: LevelMap,
+    pub intro: String,
     pub rooms: Vec<Rc<Room>>,
     pub entry: Coord,
     pub npcs: HashMap<String, NPC>,

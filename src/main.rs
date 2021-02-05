@@ -316,7 +316,10 @@ pub struct Game<'a, T: Environment> {
     environment: RefCell<T>,
 }
 
-impl<'a, T: Environment> Game<'a, T> {
+impl<'a, T> Game<'a, T>
+where
+    T: Environment,
+{
     fn new(item_db: &'a ItemDatabase, environment: T) -> Game<'a, T> {
         let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
         let save_state = {
@@ -472,7 +475,7 @@ fn main() {
 fn game_loop<'a, T: Environment>(item_db: &'a ItemDatabase, environment: T) -> GameLoopResponse {
     let mut game = Game::new(&item_db, environment);
 
-    print_text_file(&game, "data/intro.txt");
+    writeln!(game.output(), "{}", game.level.intro).unwrap();
     print_room_description(&game);
 
     loop {
