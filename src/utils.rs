@@ -26,9 +26,9 @@ where
                     }
                     if line_index == location.line() - 1 {
                         for _ in 0..location.column() - 1 {
-                            print!(" ");
+                            eprint!(" ");
                         }
-                        println!("^ {}", err);
+                        eprintln!("^ {}", err);
                         break;
                     }
                 }

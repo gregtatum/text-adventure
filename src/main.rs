@@ -503,7 +503,7 @@ fn game_loop<'a, T: Environment>(
     loop {
         let string = game.environment.borrow_mut().get_prompt();
         // Add a newline after the prompt.
-        println!("");
+        outputln!(game, "");
         match parse_command(string).unwrap_or_else(|message| ParsedCommand::Message(message)) {
             ParsedCommand::Look(Some(target)) => {
                 look_command(&mut game, &target);
@@ -537,21 +537,25 @@ fn game_loop<'a, T: Environment>(
             ParsedCommand::Debug => {
                 game.save_state.debug = !game.save_state.debug;
                 if game.save_state.debug {
-                    println!("Debug mode activated.");
+                    outputln!(game, "Debug mode activated.");
                 } else {
-                    println!("Debug mode de-activated.");
+                    outputln!(game, "Debug mode de-activated.");
                 }
             }
             ParsedCommand::Drop(target) => match game.save_state.inventory.drop_item(&target) {
                 DropResult::Item(item) => {
-                    println!("You dropped the {}.", item.name);
+                    outputln!(game, "You dropped the {}.", item.name);
                     game.save_state.room_inventory_mut().add_item(item);
                 }
                 DropResult::Sticky => {
-                    println!("The {} appear(s) to be sticking to your hand.", target)
+                    outputln!(
+                        game,
+                        "The {} appear(s) to be sticking to your hand.",
+                        target
+                    )
                 }
                 DropResult::None => {
-                    println!("It does not look like you have a {}.", target);
+                    outputln!(game, "It does not look like you have a {}.", target);
                 }
             },
             ParsedCommand::Take(target) => {
@@ -560,15 +564,15 @@ fn game_loop<'a, T: Environment>(
                         game.save_state.inventory.add_item(inventory_item);
                         match room_item.pickup {
                             Some(pickup) => {
-                                println!("{}", pickup)
+                                outputln!(game, "{}", pickup)
                             }
                             None => {
-                                println!("You place the {} in your inventory.", target)
+                                outputln!(game, "You place the {} in your inventory.", target)
                             }
                         }
                     }
                     None => {
-                        println!("You couldn't find a {} to take.", target);
+                        outputln!(game, "You couldn't find a {} to take.", target);
                     }
                 }
             }
@@ -581,34 +585,37 @@ fn game_loop<'a, T: Environment>(
                     .find_action(Verb::Talk, &target, &game.level, None)
                 {
                     Some(action) => {
-                        println!("{}", action.value);
+                        outputln!(game, "{}", action.value);
                     }
                     None => {
-                        println!("You can't talk to {:?}", target);
+                        outputln!(game, "You can't talk to {:?}", target);
                     }
                 }
             }
             ParsedCommand::Talk(None) => {
-                println!("You talk outloud for a bit and feel much better, thank you.")
+                outputln!(
+                    game,
+                    "You talk outloud for a bit and feel much better, thank you."
+                )
             }
             ParsedCommand::Inventory => {
-                print_box("Your inventory:");
+                print_box(&game, "Your inventory:");
                 if game.save_state.inventory.items.is_empty() {
-                    println!("    (empty)")
+                    outputln!(game, "    (empty)")
                 }
                 for item in game.save_state.inventory.items.iter() {
                     match item.max_quantity {
                         Some(_) => {
-                            println!("  ‣ {} ({})", item.name, item.quantity);
+                            outputln!(game, "  ‣ {} ({})", item.name, item.quantity);
                         }
                         None => {
-                            println!("  ‣ {}", item.name);
+                            outputln!(game, "  ‣ {}", item.name);
                         }
                     }
                 }
-                println!("");
+                outputln!(game, "");
             }
-            ParsedCommand::Message(message) => println!("{}", message),
+            ParsedCommand::Message(message) => outputln!(game, "{}", message),
             ParsedCommand::Restart => {
                 if prompt_yes_no(
                     &mut game,
@@ -616,7 +623,7 @@ fn game_loop<'a, T: Environment>(
                 ) {
                     return GameLoopResponse::Restart;
                 } else {
-                    println!("Let's keep playing!");
+                    outputln!(game, "Let's keep playing!");
                 }
             }
             ParsedCommand::Custom(command, target) => match target {
@@ -625,14 +632,16 @@ fn game_loop<'a, T: Environment>(
                         .room
                         .find_action(Verb::Custom, &target, &game.level, Some(&command))
                     {
-                        Some(action) => println!("{}", action.value),
-                        None => println!(
+                        Some(action) => outputln!(game, "{}", action.value),
+                        None => outputln!(
+                            game,
                             "You don't know how to {:?}. Type \"help\" for help.",
                             command
                         ),
                     }
                 }
-                None => println!(
+                None => outputln!(
+                    game,
                     "You don't know how to {:?}. Type \"help\" for help.",
                     command
                 ),
@@ -641,26 +650,26 @@ fn game_loop<'a, T: Environment>(
     }
 }
 
-fn print_box(text: &str) {
+fn print_box<T: Environment>(game: &Game<T>, text: &str) {
     let len = text.len() + 2;
-    print!("╔");
+    output!(game, "╔");
     for _ in 0..len {
-        print!("═");
+        output!(game, "═");
     }
-    print!("╗\n");
+    output!(game, "╗\n");
 
-    println!("║ {} ║", text);
+    outputln!(game, "║ {} ║", text);
 
-    print!("╚");
+    output!(game, "╚");
     for _ in 0..len {
-        print!("═");
+        output!(game, "═");
     }
-    print!("╝\n");
+    output!(game, "╝\n");
 }
 
 fn prompt_yes_no<T: Environment>(game: &mut Game<T>, message: &str) -> bool {
     loop {
-        println!("{} (yes, no)", message);
+        outputln!(game, "{} (yes, no)", message);
         let response = game.environment.borrow_mut().get_prompt();
         match response.as_str() {
             "yes" | "y" => {
@@ -670,7 +679,7 @@ fn prompt_yes_no<T: Environment>(game: &mut Game<T>, message: &str) -> bool {
                 return false;
             }
             _ => {
-                println!("What was that?");
+                outputln!(game, "What was that?");
             }
         }
     }
@@ -688,11 +697,11 @@ fn look_command<T: Environment>(game: &Game<T>, target: &String) {
 
     // Look at an npc?
     if let Some(npc) = game.room.get_npc(&game.level, &target) {
-        println!("{}\n", npc.description);
+        outputln!(game, "{}\n", npc.description);
         for (item, cost) in npc.items_iter(&game.item_db) {
-            println!("  ‣ {} ({} gp)", item.name, cost);
+            outputln!(game, "  ‣ {} ({} gp)", item.name, cost);
         }
-        println!("");
+        outputln!(game, "");
         return;
     }
 
@@ -701,7 +710,7 @@ fn look_command<T: Environment>(game: &Game<T>, target: &String) {
         for sale_item in npc.items.iter() {
             if *target == sale_item.id {
                 let item = game.item_db.get(target);
-                println!("{}\n", item.description);
+                outputln!(game, "{}\n", item.description);
                 return;
             }
         }
@@ -711,12 +720,12 @@ fn look_command<T: Environment>(game: &Game<T>, target: &String) {
     for inv_item in game.save_state.inventory.items.iter() {
         if *target == inv_item.id {
             let item = game.item_db.get(target);
-            println!("{}\n", item.description);
+            outputln!(game, "{}\n", item.description);
             return;
         }
     }
 
-    println!("You don't see a {}.\n", target);
+    outputln!(game, "You don't see a {}.\n", target);
 }
 
 fn help_target_command<T: Environment>(game: &Game<T>, target: &String) {
@@ -725,11 +734,25 @@ fn help_target_command<T: Environment>(game: &Game<T>, target: &String) {
         .room
         .find_action(Verb::Help, &target, &game.level, None)
     {
-        println!("{}\n", action.value);
+        outputln!(game, "{}\n", action.value);
         return;
     }
 
-    println!("You can't help {}.\n", target);
+    outputln!(game, "You can't help {}.\n", target);
+}
+
+#[macro_export]
+macro_rules! output {
+    ( $game:ident, $( $x:expr ),* ) => {
+        write!($game.output(), $($x, )*).unwrap();
+    };
+}
+
+#[macro_export]
+macro_rules! outputln {
+    ( $game:ident, $( $x:expr ),* ) => {
+        writeln!($game.output(), $($x, )*).unwrap();
+    };
 }
 
 #[cfg(test)]
@@ -833,7 +856,14 @@ mod test {
     fn test_inventory() {
         insta::assert_yaml_snapshot!(run_game(vec!["inventory"]), @r###"
         ---
-        []
+        - ""
+        - ╔═════════════════╗
+        - "║ Your inventory: ║"
+        - ╚═════════════════╝
+        - "  ‣ sword"
+        - "  ‣ gold (17)"
+        - ""
+        - ""
         "###);
     }
 }
