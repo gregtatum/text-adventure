@@ -36,7 +36,9 @@ impl Terminal {
 
 impl Environment for Terminal {
     fn get_prompt(&mut self) -> String {
-        rprompt::prompt_reply_stdout("» ").unwrap().to_lowercase()
+        rprompt::prompt_reply_stdout("» ")
+            .expect("Unable to get prompt")
+            .to_lowercase()
     }
 }
 
@@ -320,23 +322,23 @@ impl<'a, T> Game<'a, T>
 where
     T: Environment,
 {
-    fn new(item_db: &'a ItemDatabase, environment: T) -> Game<'a, T> {
-        let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
-        let save_state = {
-            let path = PathBuf::from("data/save-state.yml");
-            if path.exists() {
-                parse_yml(&"data/save-state.yml".into())
-            } else {
-                SaveState::initialize(&item_db, &level)
-            }
-        };
+    fn new(
+        item_db: &'a ItemDatabase,
+        environment: T,
+        level: Level,
+        save_state: Option<SaveState>,
+    ) -> Game<'a, T> {
+        let save_state = save_state.unwrap_or_else(|| SaveState::initialize(&item_db, &level));
         let lookup_room_info = parse_map(&level);
         let room = (*level
             .get_room(&save_state.coord)
             .expect("Unable to find the entry room."))
         .clone();
 
-        let room_info = (*lookup_room_info.get(&save_state.coord).unwrap()).clone();
+        let room_info = (*lookup_room_info
+            .get(&save_state.coord)
+            .expect("Could not find coordinate."))
+        .clone();
 
         Game {
             level,
@@ -450,13 +452,23 @@ impl SaveState {
 
 enum GameLoopResponse {
     Restart,
-    Quit,
+    Quit(SaveState),
 }
 
 fn main() {
     let item_db = ItemDatabase::new();
     loop {
-        match game_loop(&item_db, Terminal::new()) {
+        let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
+        let save_state = {
+            let path = PathBuf::from("data/save-state.yml");
+            if path.exists() {
+                Some(parse_yml(&"data/save-state.yml".into()))
+            } else {
+                None
+            }
+        };
+
+        match game_loop(&item_db, level, save_state, Terminal::new()) {
             GameLoopResponse::Restart => {
                 let save_file = PathBuf::from("data/save-state.yml");
                 if save_file.exists() {
@@ -464,7 +476,12 @@ fn main() {
                         .expect("Unable to remove the save file.");
                 }
             }
-            GameLoopResponse::Quit => {
+            GameLoopResponse::Quit(save_state) => {
+                let path = PathBuf::from("data/save-state.yml");
+                let yml = serde_yaml::to_string(&save_state)
+                    .expect("Unable to serialize the game state.");
+                fs::write(path, yml).expect("Unable to save the game state.");
+
                 println!("Thanks for playing!");
                 return;
             }
@@ -472,8 +489,13 @@ fn main() {
     }
 }
 
-fn game_loop<'a, T: Environment>(item_db: &'a ItemDatabase, environment: T) -> GameLoopResponse {
-    let mut game = Game::new(&item_db, environment);
+fn game_loop<'a, T: Environment>(
+    item_db: &'a ItemDatabase,
+    level: Level,
+    save_state: Option<SaveState>,
+    environment: T,
+) -> GameLoopResponse {
+    let mut game = Game::new(&item_db, environment, level, save_state);
 
     writeln!(game.output(), "{}", game.level.intro).unwrap();
     print_room_description(&game);
@@ -551,12 +573,7 @@ fn game_loop<'a, T: Environment>(item_db: &'a ItemDatabase, environment: T) -> G
                 }
             }
             ParsedCommand::Quit => {
-                let path = PathBuf::from("data/save-state.yml");
-                let yml = serde_yaml::to_string(&game.save_state)
-                    .expect("Unable to serialize the game state.");
-                fs::write(path, yml).expect("Unable to save the game state.");
-
-                return GameLoopResponse::Quit;
+                return GameLoopResponse::Quit(game.save_state);
             }
             ParsedCommand::Talk(Some(target)) => {
                 match game
@@ -772,9 +789,10 @@ mod test {
     fn run_game(commands: Vec<&'static str>) -> Vec<String> {
         let item_db = ItemDatabase::new();
         let mut command_runner = CommandRunner::new(commands);
+        let level: Level = parse_yml(&"data/levels/test-level.yml".into());
 
-        match game_loop(&item_db, &mut command_runner) {
-            GameLoopResponse::Quit => {}
+        match game_loop(&item_db, level, None, &mut command_runner) {
+            GameLoopResponse::Quit(_) => {}
             GameLoopResponse::Restart => panic!("Unexpected restart."),
         };
 
@@ -782,16 +800,40 @@ mod test {
     }
 
     #[test]
+    fn test_intro() {
+        insta::assert_yaml_snapshot!(run_game(vec![]), @r###"
+        ---
+        - ╔═══════╗
+        - ║ Intro ║
+        - ╚═══════╝
+        - ""
+        - Stone End Docks
+        - ""
+        - "    You are standing at the Stone End Docks. "
+        - ""
+        - ""
+        - "Exits: n _ _ _"
+        "###);
+    }
+
+    #[test]
     fn test_look() {
         insta::assert_yaml_snapshot!(run_game(vec!["look"]), @r###"
         ---
-        - The Door to the Stone End Keep
+        - Stone End Docks
         - ""
-        - "    Stone steps lead up to two large sturdy doors. These are attached to the thick walls "
-        - "    of Stone End keep. Guards block the gate, standing at attention, pikes in hand. "
+        - "    You are standing at the Stone End Docks. "
         - ""
         - ""
-        - "Exits: _ e s w"
+        - "Exits: n _ _ _"
+        "###);
+    }
+
+    #[test]
+    fn test_inventory() {
+        insta::assert_yaml_snapshot!(run_game(vec!["inventory"]), @r###"
+        ---
+        []
         "###);
     }
 }
