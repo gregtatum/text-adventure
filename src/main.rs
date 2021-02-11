@@ -18,8 +18,12 @@ use std::{
     str::SplitWhitespace,
 };
 
+/// The environment is where the game is run. This is currently either the terminal
+/// environment, or a test runner environment. Others could be added, such as the
+/// browser.
 pub trait Environment: Write {
     fn get_prompt(&mut self) -> String;
+    fn exit_game(&mut self);
 }
 
 struct Terminal {
@@ -39,6 +43,10 @@ impl Environment for Terminal {
         rprompt::prompt_reply_stdout("» ")
             .expect("Unable to get prompt")
             .to_lowercase()
+    }
+
+    fn exit_game(&mut self) {
+        process::exit(1);
     }
 }
 
@@ -315,7 +323,7 @@ pub struct Game<'a, T: Environment> {
     save_state: SaveState,
     lookup_room_info: HashMap<Coord, RoomMapInfo>,
     room_info: RoomMapInfo,
-    environment: RefCell<T>,
+    environment: &'a RefCell<T>,
 }
 
 impl<'a, T> Game<'a, T>
@@ -324,7 +332,7 @@ where
 {
     fn new(
         item_db: &'a ItemDatabase,
-        environment: T,
+        environment: &'a RefCell<T>,
         level: Level,
         save_state: Option<SaveState>,
     ) -> Game<'a, T> {
@@ -347,7 +355,7 @@ where
             save_state,
             lookup_room_info,
             room_info,
-            environment: RefCell::new(environment),
+            environment,
         }
     }
 
@@ -462,19 +470,27 @@ enum GameLoopResponse {
 }
 
 fn main() {
-    let item_db = ItemDatabase::new();
+    let terminal = RefCell::new(Terminal::new());
+    let item_db = ItemDatabase::new(terminal.borrow_mut());
     loop {
-        let level: Level = parse_yml(&"data/levels/stone-end-market.yml".into());
+        let level: Level = parse_yml(
+            terminal.borrow_mut(),
+            &"data/levels/stone-end-market.yml".into(),
+        )
+        .expect("Unable to parse level");
         let save_state = {
             let path = PathBuf::from("data/save-state.yml");
             if path.exists() {
-                Some(parse_yml(&"data/save-state.yml".into()))
+                Some(
+                    parse_yml(terminal.borrow_mut(), &"data/save-state.yml".into())
+                        .expect("Unable to parse the save state."),
+                )
             } else {
                 None
             }
         };
 
-        match game_loop(&item_db, level, save_state, Terminal::new()) {
+        match game_loop(&item_db, level, save_state, &terminal) {
             GameLoopResponse::Restart => {
                 let save_file = PathBuf::from("data/save-state.yml");
                 if save_file.exists() {
@@ -499,7 +515,7 @@ fn game_loop<'a, T: Environment>(
     item_db: &'a ItemDatabase,
     level: Level,
     save_state: Option<SaveState>,
-    environment: T,
+    environment: &'a RefCell<T>,
 ) -> GameLoopResponse {
     let mut game = Game::new(&item_db, environment, level, save_state);
 
@@ -779,6 +795,7 @@ mod test {
     struct CommandRunner {
         commands: Vec<&'static str>,
         output: Vec<u8>,
+        did_exit: bool,
     }
 
     impl CommandRunner {
@@ -788,6 +805,7 @@ mod test {
             CommandRunner {
                 commands,
                 output: Vec::new(),
+                did_exit: false,
             }
         }
 
@@ -814,7 +832,7 @@ mod test {
         }
     }
 
-    impl Environment for &mut CommandRunner {
+    impl Environment for CommandRunner {
         fn get_prompt(&mut self) -> String {
             if self.commands.len() > 1 {
                 // Retain the last output.
@@ -825,19 +843,27 @@ mod test {
                 .expect("Expected to find a string in the CommandRunner.")
                 .to_string()
         }
+
+        fn exit_game(&mut self) {
+            self.did_exit = true;
+        }
     }
 
     fn run_game(commands: Vec<&'static str>) -> Vec<String> {
-        let item_db = ItemDatabase::new();
-        let mut command_runner = CommandRunner::new(commands);
-        let level: Level = parse_yml(&"data/levels/test-level.yml".into());
+        let command_runner = RefCell::new(CommandRunner::new(commands));
+        let item_db = ItemDatabase::new(command_runner.borrow_mut());
+        let level: Level = parse_yml(
+            command_runner.borrow_mut(),
+            &"data/levels/test-level.yml".into(),
+        )
+        .expect("Unable to parse level");
 
-        match game_loop(&item_db, level, None, &mut command_runner) {
+        match game_loop(&item_db, level, None, &command_runner) {
             GameLoopResponse::Quit(_) => {}
             GameLoopResponse::Restart => panic!("Unexpected restart."),
         };
 
-        command_runner.get_last_output()
+        command_runner.into_inner().get_last_output()
     }
 
     #[test]
@@ -953,5 +979,19 @@ mod test {
         - "A fairly basic looking sword, with some signs of wear. It is well oiled and"
         - "sharpened, ready to use."
         "###);
+    }
+
+    #[test]
+    fn test_stone_end() {
+        let command_runner = RefCell::new(CommandRunner::new(vec![]));
+        let _: Level = parse_yml(
+            command_runner.borrow_mut(),
+            &"data/levels/stone-end-market.yml".into(),
+        )
+        .expect("Parsed level");
+        assert!(
+            !command_runner.borrow().did_exit,
+            "The level successfully parsed."
+        )
     }
 }

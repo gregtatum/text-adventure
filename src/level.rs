@@ -1,10 +1,10 @@
 use std::{
-    cell::RefCell,
+    cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     rc::Rc,
 };
 
-use crate::utils::parse_yml;
+use crate::{utils::parse_yml, Environment};
 
 use serde::{Deserialize, Serialize};
 
@@ -212,9 +212,10 @@ pub struct ItemDatabase {
 }
 
 impl ItemDatabase {
-    pub fn new() -> ItemDatabase {
+    pub fn new<E: Environment>(environment: RefMut<E>) -> ItemDatabase {
         ItemDatabase {
-            items: parse_yml(&"data/items.yml".into()),
+            items: parse_yml(environment, &"data/items.yml".into())
+                .expect("Unable to parse items."),
         }
     }
 

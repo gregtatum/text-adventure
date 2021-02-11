@@ -1,8 +1,9 @@
-use std::{fs, path::PathBuf, process};
+use std::{cell::RefMut, fs, path::PathBuf};
 
+use crate::Environment;
 use serde::de::DeserializeOwned;
 
-pub fn parse_yml<T>(path: &PathBuf) -> T
+pub fn parse_yml<E: Environment, T>(mut environment: RefMut<E>, path: &PathBuf) -> Result<T, ()>
 where
     T: DeserializeOwned,
 {
@@ -12,7 +13,7 @@ where
     };
 
     match serde_yaml::from_str(&yml_string) {
-        Ok(t) => t,
+        Ok(t) => Ok(t),
         Err(err) => {
             eprintln!("======================================================================");
             eprintln!("Unable to deserialize, {}", path.as_path().display());
@@ -39,7 +40,8 @@ where
                     location.column()
                 );
             }
-            process::exit(1);
+            environment.exit_game();
+            Err(())
         }
     }
 }
